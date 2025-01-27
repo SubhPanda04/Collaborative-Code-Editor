@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FaEnvelope, FaEye, FaEyeSlash } from 'react-icons/fa6'
+import { FaEye, FaEyeSlash } from 'react-icons/fa6'
 import { motion } from 'framer-motion'
 
 const UserAuthInput = ({label,placeHolder,isPass,setStateFunction,Icon,setGetEmailValidationStatus}) => {
@@ -39,9 +39,9 @@ const UserAuthInput = ({label,placeHolder,isPass,setStateFunction,Icon,setGetEma
             {isPass && (
                 <motion.div onClick = {() => setShowPass(!showPass)} whileTap = {{scale: 0.9}} className='cursor-pointer'>
                     { showPass ? (
-                        <FaEye className='text-text555 text-2xl' />
-                    ) : (
                         <FaEyeSlash className='text-text555 text-2xl' />
+                    ) : (
+                        <FaEye className='text-text555 text-2xl' />
                     )}
                     
                 </motion.div>

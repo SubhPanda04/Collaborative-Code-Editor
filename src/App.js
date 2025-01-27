@@ -6,16 +6,18 @@ import { auth } from './config/firebase.config';
 const App = () => {
   const navigate = useNavigate();
 
+  const unsubscribe = auth.onAuthStateChanged((userCred) => {
+    if(userCred) {
+      console.log(userCred?.providerData[0]);
+    }
+    else {
+      navigate("/home/auth", { replace: true });
+    }
+  });
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((userCred) => {
-      if(userCred) {
-        console.log(userCred?.providerData[0]);
-      }
-      else {
-        navigate("/home/auth", { replace: true });
-      }
-    });
-  },[]);
+    unsubscribe();
+  });
   return (
     <div className='w-screen h-screen flex items-start justify-start overflow-hidden'>
       <Routes>

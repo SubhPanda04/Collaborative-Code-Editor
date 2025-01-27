@@ -14,7 +14,7 @@ const SignUp = () => {
     const [isLogin, setisLogin] = useState(false)
   return (
     <div className='w-full py-6'>
-      <div className='bg-white'>Code-Editor</div>
+      <div className='text-white'>Code-Editor Signup page</div>
 
       <div className="w-full flex flex-col items-center justify-center py-8">
         <p className='py-12 text-2xl text-primaryText'>Join with Us!</p>

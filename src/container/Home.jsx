@@ -7,7 +7,7 @@ const Home = () => {
     const [user,setUser] = useState(null);
   return (
     <>
-    <div className='bg-white'>
+    <div className='text-white'>
       Home Page 
     </div>
     <div>
