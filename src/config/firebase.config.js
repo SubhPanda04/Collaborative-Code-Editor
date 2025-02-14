@@ -1,5 +1,5 @@
 import { getApps, getApp, initializeApp } from "firebase/app"
-import { getAuth } from "firebase/auth"
+import { getAuth, setPersistence,browserSessionPersistence } from "firebase/auth"
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -15,5 +15,14 @@ const app = getApps.length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Set authentication persistence to SESSION-based
+setPersistence(auth, browserSessionPersistence)
+  .then(() => {
+    console.log("Session-based authentication enabled.");
+  })
+  .catch((error) => {
+    console.error("Error setting authentication persistence:", error);
+  });
 
 export {app, auth, db};
