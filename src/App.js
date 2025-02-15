@@ -1,41 +1,36 @@
-import React,{ useEffect } from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { Home } from './container';
-import { auth,db } from './config/firebase.config';
-import { doc, getDoc } from  "firebase/firestore"
+import { Navigate, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const App = () => {
+function App() {
   const navigate = useNavigate();
-
-
+  const user = JSON.parse(localStorage.getItem('user'));
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (userCred) => {
-      if (userCred) {
-        const userDoc = await getDoc(doc(db, "users", userCred.uid));
-        if (!userDoc.exists()) {
-          console.log("User data not found in Firestore. Redirecting to sign-up.");
-          navigate("/home/auth", { replace: true });
-        } else {
-          console.log("User data:", userDoc.data());
-        }
-      } else {
-        navigate("/home/auth", { replace: true });
-      }
-    });
-  
-    return () => unsubscribe();
-  }, [navigate]);
-  return (
-    <div className='w-screen h-screen flex items-start justify-start overflow-hidden'>
-      <Routes>
-        <Route path="/home/*" element={<Home />} />
+    // If no user is logged in, redirect to auth page
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
 
-        {/*If the route is not matching */}
-        <Route path="*" element={<Navigate to={"/home"} />}/>
+  return (
+    <div>
+      <Routes>
+        {/* Default route redirects to auth */}
+        <Route path="/" element={<Navigate to="/auth" replace />} />
+        
+        {/* Auth route
+        <Route path="/auth" element={
+          user ? <Navigate to="/projects" replace /> : <Auth />
+        } /> */}
+
+        {/* Protected route
+        <Route path="/projects" element={
+          user ? <Projects /> : <Navigate to="/auth" replace />
+        } /> */}
       </Routes>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
