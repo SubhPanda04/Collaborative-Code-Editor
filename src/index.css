@@ -1,11 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-
-@import url(https://fonts.googleapis.com/css?family=Poppins:100,100italic,200,200italic,300,300italic,regular,italic,500,500italic,600,600italic,700,700italic,800,800italic,900,900italic);
-
-
 body {
-  background: #131417;
+  background: #031d38;
+  font-family: "Noto Sans Mono", monospace;
+}
+
+.monaco-editor {
+  font-size: 16px !important;
+  font-family: "Noto Sans Mono", monospace !important;
 }
