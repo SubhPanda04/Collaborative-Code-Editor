@@ -1,10 +1,10 @@
 import React from 'react';
 import MonacoEditor from '@monaco-editor/react';
 
-const Editor = ({ language, theme, currentFile, onChange }) => {
-  const handleEditorChange = (value) => {
+const Editor = ({ language, theme, value, onChange }) => {
+  const handleEditorChange = (newValue) => {
     if (onChange) {
-      onChange(value);
+      onChange(newValue);
     }
   };
 
@@ -15,7 +15,7 @@ const Editor = ({ language, theme, currentFile, onChange }) => {
         width="100%"
         language={language}
         theme={theme}
-        value={currentFile?.content || '// Start coding here...'}
+        value={value || '// Start coding here...'}
         onChange={handleEditorChange}
         options={{
           fontSize: 22,
