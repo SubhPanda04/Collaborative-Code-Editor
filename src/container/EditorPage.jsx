@@ -5,12 +5,17 @@ import Header from '../components/Header';
 import { FaChevronLeft, FaChevronRight, FaTerminal, FaKeyboard, FaTimes, FaExpandAlt, FaCompressAlt } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import { saveToStorage, loadFromStorage } from '../utils/storage';
+import { useParams, useNavigate } from 'react-router-dom';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../config/firebase.config';
+import { Code2 } from 'lucide-react';
 
 const EditorPage = () => {
+  const { folderId, fileId } = useParams();
+  const navigate = useNavigate();
   const [selectedLanguage, setSelectedLanguage] = useState('javascript');
   const [selectedTheme, setSelectedTheme] = useState('vs-dark');
   const [roomId] = useState('room-xyz-123');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [currentFile, setCurrentFile] = useState(null);
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -22,6 +27,9 @@ const EditorPage = () => {
   const [isOutputExpanded, setIsOutputExpanded] = useState(false);
   const [unsavedChanges, setUnsavedChanges] = useState(false);
   const [savingFileId, setSavingFileId] = useState(null);
+  const [fileContent, setFileContent] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [playgrounds, setPlaygrounds] = useState([]);
 
   // Load saved data on mount
   useEffect(() => {
@@ -32,24 +40,54 @@ const EditorPage = () => {
     }
   }, []);
 
-  const handleFileContentChange = useCallback((newContent) => {
+  // Load file and folder data when component mounts
+  useEffect(() => {
+    const loadFileAndFolder = async () => {
+      try {
+        if (!folderId || !fileId) return;
+        
+        const fileRef = doc(db, "files", `${folderId}_${fileId}`);
+        const fileSnap = await getDoc(fileRef);
+        
+        if (fileSnap.exists()) {
+          const fileData = fileSnap.data();
+          setCurrentFile(fileData);
+          setFileContent(fileData.content || '');
+          setSelectedLanguage(fileData.language || 'javascript');
+          
+          // Set the entire folder structure from fileData
+          if (fileData.folderStructure) {
+            setPlaygrounds(fileData.folderStructure);
+          }
+        } else {
+          console.error("File not found!");
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error("Error loading file:", error);
+        setLoading(false);
+      }
+    };
+
+    loadFileAndFolder();
+  }, [folderId, fileId]);
+
+  const handleFileContentChange = useCallback(async (newContent) => {
     if (currentFile) {
-      setFiles(prevFiles => {
-        const updatedFiles = prevFiles.map(f =>
-          f.id === currentFile.id
-            ? {
-                ...f,
-                content: newContent,
-                updatedAt: new Date().toISOString()
-              }
-            : f
-        );
-        saveToStorage(updatedFiles, folders); // Save immediately when content changes
-        return updatedFiles;
-      });
-      setUnsavedChanges(true);
+      try {
+        const fileRef = doc(db, "files", `${currentFile.folderId}_${currentFile.id}`);
+        await setDoc(fileRef, {
+          ...currentFile,
+          content: newContent,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        
+        setUnsavedChanges(false);
+      } catch (error) {
+        console.error("Error saving file:", error);
+      }
     }
-  }, [currentFile, folders]);
+  }, [currentFile]);
 
   const saveFile = useCallback(() => {
     if (currentFile && unsavedChanges) {
@@ -201,150 +239,155 @@ const EditorPage = () => {
     return languageMap[extension] || 'plaintext';
   };
 
+  // Handle content changes and save to Firebase
+  const handleContentChange = async (newContent) => {
+    setFileContent(newContent);
+    setUnsavedChanges(true);
+    
+    try {
+      if (folderId && fileId) {
+        const fileRef = doc(db, "files", `${folderId}_${fileId}`);
+        await setDoc(fileRef, {
+          content: newContent,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        setUnsavedChanges(false);
+      }
+    } catch (error) {
+      console.error("Error saving content:", error);
+    }
+  };
+
+  useEffect(() => {
+    let saveTimeout;
+
+    const autoSave = () => {
+      if (fileContent && folderId && fileId) {
+        const fileRef = doc(db, "files", `${folderId}_${fileId}`);
+        setDoc(fileRef, {
+          content: fileContent,
+          updatedAt: new Date().toISOString()
+        }, { merge: true })
+        .then(() => {
+          setUnsavedChanges(false);
+        })
+        .catch((error) => {
+          console.error("Error auto-saving:", error);
+        });
+      }
+    };
+
+    if (unsavedChanges) {
+      saveTimeout = setTimeout(autoSave, 2000); // Auto-save after 2 seconds of no changes
+    }
+
+    return () => {
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+      }
+    };
+  }, [fileContent, folderId, fileId, unsavedChanges]);
+
+  // Add the getLanguageColor function to EditorPage
+  const getLanguageColor = (language) => {
+    const colors = {
+      javascript: 'text-yellow-500',
+      python: 'text-blue-500',
+      cpp: 'text-blue-600',
+      java: 'text-red-500',
+      typescript: 'text-blue-400',
+      html: 'text-orange-500',
+      css: 'text-blue-300'
+    };
+    return colors[language] || 'text-blue-500';
+  };
+
+  if (loading) {
+    return <div className="text-white text-center mt-10">Loading...</div>;
+  }
+
   return (
-    <div className="w-screen h-screen flex flex-col overflow-hidden bg-[#1A1B26]">
+    <div className="w-screen h-screen flex flex-col overflow-hidden bg-[#1E4976]">
       <Header 
-        selectedLanguage={selectedLanguage}
-        setSelectedLanguage={setSelectedLanguage}
+        selectedLanguage={currentFile?.language || selectedLanguage}
         selectedTheme={selectedTheme}
         setSelectedTheme={setSelectedTheme}
-        roomId={roomId}
         currentFile={currentFile}
-        hasUnsavedChanges={unsavedChanges}
       />
       
-      <div className="flex flex-1 overflow-hidden relative">
-        <motion.div 
-          initial={{ x: 0 }}
-          animate={{ x: isSidebarOpen ? 0 : -320 }}
-          className="h-full border-r border-[#2F3142]"
-          transition={{ duration: 0.3 }}
-        >
-          <Sidebar 
-            files={files}
-            folders={folders}
-            onCreateFile={handleCreateFile}
-            onCreateFolder={handleCreateFolder}
-            onDeleteFile={handleDeleteFile}
-            onDeleteFolder={handleDeleteFolder}
-            onSelectFile={handleFileSelect}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="w-64 flex-shrink-0">
+          <Sidebar
+            files={playgrounds}
+            folders={playgrounds}
             currentFile={currentFile}
+            onSelectFile={(file) => {
+              if (file && file.id) {
+                navigate(`/editor/${file.folderId}/${file.id}`);
+              }
+            }}
             savingFileId={savingFileId}
           />
-        </motion.div>
-
-        <div className="flex-1 flex flex-col relative">
-          <div className={`flex-1 ${(isInputVisible || isOutputVisible) ? 'h-[60%]' : 'h-full'}`}>
+        </div>
+        
+        <div className="flex-1 flex flex-col ml-64">
+          <div className="flex-1">
             <Editor 
-              language={selectedLanguage}
+              language={currentFile?.language || selectedLanguage}
               theme={selectedTheme}
-              currentFile={currentFile}
-              onChange={handleFileContentChange}
+              value={fileContent}
+              onChange={handleContentChange}
             />
           </div>
-
+          
           {/* Input/Output Container */}
-          {(isInputVisible || isOutputVisible) && (
-            <div className="h-[40%] flex border-t border-[#2F3142]">
-              {/* Input Panel */}
-              {isInputVisible && (
-                <div className={`${isOutputVisible ? 'w-1/2' : 'w-full'} 
-                  border-r border-[#2F3142] flex flex-col`}
-                >
-                  <div className="bg-[#0A1929] px-4 py-2 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <FaKeyboard className="text-[#1E88E5]" />
-                      <span className="text-white text-xl font-bold">Input</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsInputExpanded(!isInputExpanded)}
-                        className="text-gray-400 hover:text-white transition-colors"
-                      >
-                        {isInputExpanded ? <FaCompressAlt size={14} /> : <FaExpandAlt size={14} />}
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsInputVisible(false)}
-                        className="text-gray-400 hover:text-white transition-colors"
-                      >
-                        <FaTimes size={14} />
-                      </motion.button>
-                    </div>
+          <div className="h-1/3 flex">
+            {/* Input Container */}
+            {isInputVisible && (
+              <div className={`${isInputExpanded ? 'w-full' : 'w-1/2'} bg-[#1E1E1E] border-t border-[#333]`}>
+                <div className="flex justify-between items-center p-2 border-b border-[#333]">
+                  <div className="flex items-center gap-2">
+                    <FaKeyboard className="text-gray-400" />
+                    <span className="text-gray-300">Input</span>
                   </div>
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    className="flex-1 bg-[#1A1B26] text-white p-4 resize-none focus:outline-none 
-                    font-mono text-2xl"
-                    placeholder="Enter your input here..."
-                  />
-                </div>
-              )}
-
-              {/* Output Panel */}
-              {isOutputVisible && (
-                <div className={`${isInputVisible ? 'w-1/2' : 'w-full'} flex flex-col`}>
-                  <div className="bg-[#0A1929] px-4 py-2 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <FaTerminal className="text-[#1E88E5]" />
-                      <span className="text-white text-xl font-bold">Output</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsOutputExpanded(!isOutputExpanded)}
-                        className="text-gray-400 hover:text-white transition-colors"
-                      >
-                        {isOutputExpanded ? <FaCompressAlt size={14} /> : <FaExpandAlt size={14} />}
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsOutputVisible(false)}
-                        className="text-gray-400 hover:text-white transition-colors"
-                      >
-                        <FaTimes size={14} />
-                      </motion.button>
-                    </div>
-                  </div>
-                  <div className="flex-1 bg-[#1A1B26] text-white p-4 font-mono text-2xl overflow-auto">
-                    {output || 'No output yet...'}
+                  <div className="flex gap-2">
+                    <button onClick={() => setIsInputExpanded(!isInputExpanded)}>
+                      {isInputExpanded ? <FaCompressAlt className="text-gray-400" /> : <FaExpandAlt className="text-gray-400" />}
+                    </button>
+                    <button onClick={() => setIsInputVisible(false)}>
+                      <FaTimes className="text-gray-400" />
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Toggle Buttons */}
-          <div className="absolute bottom-4 right-4 flex gap-2">
-            {!isInputVisible && (
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setIsInputVisible(true)}
-                className="bg-[#1E88E5] text-white p-2 rounded-lg hover:bg-[#1976D2] 
-                transition-colors"
-                title="Show Input"
-              >
-                <FaKeyboard size={16} />
-              </motion.button>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  className="w-full h-[calc(100%-40px)] bg-[#1E1E1E] text-white p-2 resize-none outline-none"
+                />
+              </div>
             )}
-            {!isOutputVisible && (
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setIsOutputVisible(true)}
-                className="bg-[#1E88E5] text-white p-2 rounded-lg hover:bg-[#1976D2] 
-                transition-colors"
-                title="Show Output"
-              >
-                <FaTerminal size={16} />
-              </motion.button>
+            
+            {/* Output Container */}
+            {isOutputVisible && (
+              <div className={`${isOutputExpanded ? 'w-full' : 'w-1/2'} bg-[#1E1E1E] border-t border-l border-[#333]`}>
+                <div className="flex justify-between items-center p-2 border-b border-[#333]">
+                  <div className="flex items-center gap-2">
+                    <FaTerminal className="text-gray-400" />
+                    <span className="text-gray-300">Output</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setIsOutputExpanded(!isOutputExpanded)}>
+                      {isOutputExpanded ? <FaCompressAlt className="text-gray-400" /> : <FaExpandAlt className="text-gray-400" />}
+                    </button>
+                    <button onClick={() => setIsOutputVisible(false)}>
+                      <FaTimes className="text-gray-400" />
+                    </button>
+                  </div>
+                </div>
+                <div className="w-full h-[calc(100%-40px)] bg-[#1E1E1E] text-white p-2 overflow-auto">
+                  {output}
+                </div>
+              </div>
             )}
           </div>
         </div>
