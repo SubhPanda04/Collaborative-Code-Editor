@@ -94,101 +94,89 @@ const SignUp = () => {
         }
     };
   return (
-    <div className='w-full py-6'>
-      <div className='text-white'>Code-Editor Signup page</div>
+    <div className='w-full h-full flex flex-col items-center justify-start py-10'>
+      <div className='w-full flex flex-col items-center justify-center gap-8'>
+        <p className='text-3xl text-white font-bold'>Welcome to Code-Editor</p>
+        <p className='text-2xl text-primaryText'>Join with Us!</p>
 
-      <div className="w-full flex flex-col items-center justify-center py-8">
-        <p className='py-12 text-2xl text-primaryText'>Join with Us!</p>
+        <div className='w-full md:w-auto px-8 py-6 rounded-xl bg-secondary shadow-md flex flex-col items-center justify-center gap-8'>
+          {/* Email Input */}
+          <UserAuthInput 
+            label="Email" 
+            placeHolder="Email" 
+            isPass={false} 
+            key="Email" 
+            setStateFunction={setEmail} 
+            Icon={FaEnvelope} 
+            setGetEmailValidationStatus={setGetEmailValidationStatus} 
+          />
 
-        <div className='px-8 w-full md:w-auto py-4 rounded-xl bg-secondary
-        shadow-md flex flex-col items-center justify-center gap-8'>
-            {/*email */}
-            <UserAuthInput label="Email" placeHolder="Email" isPass={false} key="Email" setStateFunction={setEmail} Icon={FaEnvelope} setGetEmailValidationStatus= {setGetEmailValidationStatus} />
+          {/* Password Input */}
+          <UserAuthInput 
+            label="Password" 
+            placeHolder="Password" 
+            isPass={true} 
+            key="Password" 
+            setStateFunction={setPassword} 
+            Icon={MdPassword}
+          />
 
-            {/*password */}
-            <UserAuthInput label="Password" placeHolder="Password" isPass={true} key="Password" setStateFunction={setPassword} Icon={MdPassword}/>
-
-            {/*alert */}
-
-            <AnimatePresence>
-                {alert && (
-                    <motion.p 
-                        key={"AlertMessage"} 
-                        {...fadeInOut} 
-                        className='text-red-500'>
-                        {alertMsg} 
-                    </motion.p>
-                )}
-            </AnimatePresence>
-
-            {/* login button */}
-            {!isLogin ? (
-                <motion.div 
-                onClick={createNewUser}
-                whileTap= {{scale : 0.9}} 
-                    className='flex items-center justify-center w-full py-3 
-                    rounded-xl hover:bg-emerald-400 cursor-pointer bg-emerald-500'>
-                        <p className='text-xl text-white'>Sign Up</p>
-                    </motion.div>) : (
-                        <motion.div 
-                        onClick={loginWithEmailPassword}
-                        whileTap= {{scale : 0.9}} 
-                        className='flex items-center justify-center w-full py-3 
-                        rounded-xl hover:bg-emerald-400 cursor-pointer bg-emerald-500'>
-                            <p className='text-xl text-white'>Login</p>
-                        </motion.div>
+          {/* Alert Message */}
+          <AnimatePresence>
+            {alert && (
+              <motion.p key={"AlertMessage"} {...fadeInOut} className='text-red-500'>
+                {alertMsg}
+              </motion.p>
             )}
+          </AnimatePresence>
 
-            {/*account text section*/}
+          {/* Action Button */}
+          <motion.div 
+            onClick={!isLogin ? createNewUser : loginWithEmailPassword}
+            whileTap={{scale: 0.9}} 
+            className='w-full px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 cursor-pointer text-center'
+          >
+            <p className='text-xl text-white'>{!isLogin ? "Sign Up" : "Login"}</p>
+          </motion.div>
 
-            {!isLogin ? (<p className='text-sm text-primaryText flex items-center justify-center gap-3'>Already Have an account !{" "} 
-                <span onClick={() => setisLogin(!isLogin)} className='text-emerald-500 cursor-pointer'>Login Here</span></p>
-            ) : (
-                <p className='text-sm text-primaryText flex items-center justify-center gap-3'>Don't Have an account !{" "} 
-                <span onClick={() => setisLogin(!isLogin)} className='text-emerald-500 cursor-pointer'>Create Here</span></p>
+          {/* Toggle Login/Signup */}
+          <p className='text-sm text-primaryText flex items-center justify-center gap-3'>
+            {!isLogin ? "Already have an account? " : "Don't have an account? "}
+            <span 
+              onClick={() => setisLogin(!isLogin)} 
+              className='text-emerald-500 cursor-pointer hover:text-emerald-600'
+            >
+              {!isLogin ? "Login Here" : "Create Here"}
+            </span>
+          </p>
 
-            )}
-            
+          {/* Divider */}
+          <div className='flex items-center justify-center gap-12'>
+            <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
+            <p className="text-sm text-[rgba(256,256,256,0.2)]">OR</p>
+            <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
+          </div>
 
-            {/* or section */}
-
-            <div className='flex items-center justify-center gap-12'>
-                <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
-                <p className="text-sm text-[rgba(256,256,256,0.2)]">OR</p>
-                <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
-            </div>
-
-            {/* sign in with google */}
+          {/* Social Auth Buttons */}
+          <div className='flex flex-col gap-4 w-full'>
             <motion.div
-            onClick={signINWithGoogle}
-            className='flex items-center justify-center gap-3 bg-[rgba(256,256,256,0.2)]
-             backdrop-blur-md w-full py-3 rounded-xl hover:bg-[rgba(256,256,256,0.4)]
-             cursor-pointer'
-            whileTap={{scale : 0.9}}>
-                <FcGoogle className='text-3xl'/>
-                <p className='text-xl text-white'>Sign in with Google</p>
+              onClick={signINWithGoogle}
+              className='flex items-center justify-center gap-3 bg-[rgba(256,256,256,0.2)] backdrop-blur-md w-full py-3 rounded-xl hover:bg-[rgba(256,256,256,0.4)] cursor-pointer'
+              whileTap={{scale: 0.9}}
+            >
+              <FcGoogle className='text-3xl'/>
+              <p className='text-xl text-white'>Sign in with Google</p>
             </motion.div>
-
-            {/* or section */}
-
-            <div className='flex items-center justify-center gap-12'>
-                <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
-                <p className="text-sm text-[rgba(256,256,256,0.2)]">OR</p>
-                <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
-            </div>
-
-
-            {/* sign in with github */}
 
             <motion.div 
-            onClick={signINWithGitHub}
-            className='flex items-center justify-center gap-3 bg-[rgba(256,256,256,0.2)]
-             backdrop-blur-md w-full py-3 rounded-xl hover:bg-[rgba(256,256,256,0.4)]
-             cursor-pointer'
-            whileTap={{scale : 0.9}}>
-                <FaGithub className='text-white'/>
-                <p className='text-xl text-white'>Sign in with GitHub</p>
+              onClick={signINWithGitHub}
+              className='flex items-center justify-center gap-3 bg-[rgba(256,256,256,0.2)] backdrop-blur-md w-full py-3 rounded-xl hover:bg-[rgba(256,256,256,0.4)] cursor-pointer'
+              whileTap={{scale: 0.9}}
+            >
+              <FaGithub className='text-3xl text-white'/>
+              <p className='text-xl text-white'>Sign in with GitHub</p>
             </motion.div>
+          </div>
         </div>
       </div>
     </div>
