@@ -4,13 +4,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: "#131417",
-        secondary: "#1E1F26",
-        primaryText: "#868CA0",
-        text555: "#555",
+        primary: "#031d38",
+        secondary: "#0a2744",
+        primaryText: "#a3b3c9",
+        text555: "#6b7f99",
+      },
     },
   },
-},
   plugins: [],
 };
 
