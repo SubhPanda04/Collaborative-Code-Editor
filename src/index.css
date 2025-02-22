@@ -1,15 +1,62 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@100..900&display=swap');
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background: #031d38;
-  font-family: "Noto Sans Mono", monospace;
+/* Editor customization */
+.monaco-editor {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
 }
 
-.monaco-editor {
-  font-size: 16px !important;
-  font-family: "Noto Sans Mono", monospace !important;
+/* Make the margin/gutter area consistent with main editor */
+.monaco-editor .margin,
+.monaco-editor .margin *,
+.monaco-editor .margin-view-overlays,
+.monaco-editor .margin-view-overlays * {
+  background-color: inherit !important;
+  width: auto !important; /* Allow the margin to expand based on content */
+}
+
+/* Line numbers styling */
+.monaco-editor .line-numbers {
+  color: #858585 !important;
+  font-size: 14px !important;
+  min-width: 3em !important; /* Ensure minimum width for line numbers */
+  padding: 0 8px !important; /* Add padding around line numbers */
+}
+
+.monaco-editor .current-line ~ .line-numbers {
+  color: #c6c6c6 !important;
+  font-weight: bold !important;
+}
+
+/* Glyph margin styling */
+.monaco-editor .glyph-margin {
+  background-color: inherit !important;
+  width: 25px !important; /* Increased glyph margin width */
+}
+
+/* Indent guides */
+.monaco-editor .indent-guide {
+  box-shadow: 1px 0 0 0 rgba(255, 255, 255, 0.1) inset !important;
+}
+
+/* Active line highlight */
+.monaco-editor .current-line {
+  border: none !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Content padding */
+.monaco-editor .monaco-editor-background {
+  padding: 0 10px !important;
 }
