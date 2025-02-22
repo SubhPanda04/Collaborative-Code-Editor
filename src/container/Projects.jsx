@@ -1,269 +1,586 @@
-import React, { useState } from 'react'
-import { FaFolder, FaTrash, FaPencilAlt } from 'react-icons/fa';
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { 
+  FaFolder, 
+  FaTrash, 
+  FaPencilAlt, 
+  FaChevronDown, 
+  FaChevronRight, 
+  FaJs, 
+  FaPython, 
+  FaJava, 
+  FaHtml5, 
+  FaCss3,
+  FaPlus
+} from 'react-icons/fa';
 import { Code2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  collection, 
+  addDoc, 
+  serverTimestamp, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  doc, 
+  deleteDoc, 
+  updateDoc,
+  arrayUnion,
+  getDoc
+} from 'firebase/firestore';
+import { db, auth } from '../config/firebase.config';
+import { setPlaygrounds, setLoading, setError, clearPlaygrounds } from '../redux/slices/playgroundSlice';
+import { SiTypescript, SiCplusplus, SiRust, SiGo } from 'react-icons/si';
+
+const getFileIcon = (fileName) => {
+  const extension = fileName.split('.').pop().toLowerCase();
+  switch (extension) {
+    case 'js':
+      return <FaJs className="text-yellow-500" />;
+    case 'py':
+      return <FaPython className="text-blue-500" />;
+    case 'java':
+      return <FaJava className="text-red-500" />;
+    case 'ts':
+      return <SiTypescript className="text-blue-400" />;
+    case 'html':
+      return <FaHtml5 className="text-orange-500" />;
+    case 'css':
+      return <FaCss3 className="text-blue-300" />;
+    case 'cpp':
+    case 'c':
+      return <SiCplusplus className="text-blue-600" />;
+    case 'rs':
+      return <SiRust className="text-orange-600" />;
+    case 'go':
+      return <SiGo className="text-blue-400" />;
+    default:
+      return <Code2 className="text-gray-400" />;
+  }
+};
 
 const Projects = () => {
   const navigate = useNavigate();
-  const languages = ['javascript', 'python', 'cpp', 'java', 'typescript', 'html', 'css'];
-  
-  const getLanguageColor = (language) => {
-    const colors = {
-      javascript: 'text-yellow-500',
-      python: 'text-blue-500',
-      cpp: 'text-blue-600',
-      java: 'text-red-500',
-      typescript: 'text-blue-400',
-      html: 'text-orange-500',
-      css: 'text-blue-300'
-    };
-    return colors[language] || 'text-blue-500';
-  };
+  const dispatch = useDispatch();
+  const { playgrounds, loading, error } = useSelector((state) => state.playground);
+  const [expandedFolders, setExpandedFolders] = useState(new Set());
 
-  const [playgrounds, setPlaygrounds] = useState([
-    {
-      id: 1,
-      title: 'DSA',
-      items: [
-        {
-          id: 1,
-          name: 'Stack Implementation',
-          language: 'cpp',
-          icon: <Code2 className="w-12 h-12 text-blue-500" />
-        },
-        {
-          id: 2,
-          name: 'Language: javascript',
-          language: 'javascript',
-          icon: <Code2 className="w-12 h-12 text-yellow-500" />
-        }
-      ]
-    },
-    {
-      id: 2,
-      title: 'capstone',
-      items: [
-        {
-          id: 3,
-          name: 'ravi',
-          language: 'cpp',
-          icon: <Code2 className="w-12 h-12 text-blue-500" />
-        }
-      ]
-    },
-    {
-      id: 3,
-      title: 'webdev',
-      items: [
-        {
-          id: 4,
-          name: 'text',
-          language: 'cpp',
-          icon: <Code2 className="w-12 h-12 text-blue-500" />
-        },
-        {
-          id: 5,
-          name: 'ravi',
-          language: 'cpp',
-          icon: <Code2 className="w-12 h-12 text-blue-500" />
-        }
-      ]
-    }
-  ]);
-
-  const handleDeleteFolder = (folderId) => {
-    setPlaygrounds(playgrounds.filter(folder => folder.id !== folderId));
-  };
-
-  const handleDeleteFile = (e, folderId, fileId) => {
-    e.stopPropagation();
-    setPlaygrounds(playgrounds.map(folder => {
-      if (folder.id === folderId) {
-        return {
-          ...folder,
-          items: folder.items.filter(item => item.id !== fileId)
-        };
+  const toggleFolder = (folderId) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
       }
-      return folder;
-    }));
+      return next;
+    });
   };
 
-  const handleEditFolder = (folderId) => {
-    const newTitle = prompt('Enter new folder name:');
-    if (newTitle) {
-      setPlaygrounds(playgrounds.map(folder => {
-        if (folder.id === folderId) {
-          return { ...folder, title: newTitle };
-        }
-        return folder;
-      }));
-    }
-  };
-
-  const handleEditFile = (e, folderId, fileId) => {
-    e.stopPropagation();
-    const currentFile = playgrounds
-      .find(folder => folder.id === folderId)
-      ?.items.find(item => item.id === fileId);
+  useEffect(() => {
+    console.log("Projects component mounted");
+    dispatch(setLoading(true));
+    const userUID = auth.currentUser?.uid;
     
-    if (!currentFile) return;
+    if (!userUID) {
+      console.log("No user ID found");
+      dispatch(setLoading(false));
+      return;
+    }
 
-    const newName = prompt('Enter new file name:', currentFile.name);
-    if (!newName) return;
-
-    const newLanguage = prompt(
-      `Choose language (${languages.join(', ')}):`,
-      currentFile.language
+    console.log("Fetching playgrounds for user:", userUID);
+    const q = query(
+      collection(db, "playgrounds"),
+      where("userId", "==", userUID)
     );
-    if (!newLanguage || !languages.includes(newLanguage.toLowerCase())) return;
 
-    setPlaygrounds(playgrounds.map(folder => {
-      if (folder.id === folderId) {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log("Snapshot received, document count:", snapshot.docs.length);
+      const playgroundsData = snapshot.docs.map(doc => {
+        console.log("Playground data:", doc.data());
         return {
-          ...folder,
-          items: folder.items.map(item => {
-            if (item.id === fileId) {
-              return {
-                ...item,
-                name: newName,
-                language: newLanguage.toLowerCase(),
-                icon: <Code2 className={`w-12 h-12 ${getLanguageColor(newLanguage.toLowerCase())}`} />
-              };
-            }
-            return item;
-          })
+          id: doc.id,
+          ...doc.data()
         };
-      }
-      return folder;
-    }));
-  };
+      });
+      dispatch(setPlaygrounds(playgroundsData));
+      dispatch(setLoading(false));
+    });
 
-  const handleAddFolder = () => {
-    const title = prompt('Enter folder name:');
-    if (title) {
-      const newFolder = {
-        id: Date.now(),
-        title,
-        items: []
+    return () => {
+      console.log("Cleaning up Projects component");
+      unsubscribe();
+    };
+  }, [dispatch]);
+
+  const handleNestedOperation = async (parentFolderId, nestedParentId, operation, type) => {
+    try {
+      const folderRef = doc(db, "playgrounds", parentFolderId);
+      const folderDoc = await getDoc(folderRef);
+      
+      if (!folderDoc.exists()) {
+        throw new Error("Folder not found");
+      }
+
+      const findAndUpdateItems = (items, targetId) => {
+        return items.map(item => {
+          if (item.id === targetId) {
+            if (operation === 'add') {
+              const updatedItems = [...(item.items || [])];
+              if (type === 'file') {
+                const fileName = prompt("Enter file name (without extension:");
+                if (!fileName) return item;
+
+                const fileExtension = prompt("Enter file extension (without dot:");
+                if (!fileExtension) return item;
+
+                const fullFileName = `${fileName}.${fileExtension}`;
+
+                const newFile = {
+                  id: Date.now().toString(),
+                  name: fullFileName,
+                  type: 'file',
+                  content: '',
+                  language: fileExtension,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                };
+
+                updatedItems.push(newFile);
+              } else if (type === 'folder') {
+                const folderName = prompt("Enter folder name:");
+                if (!folderName) return item;
+
+                const newFolder = {
+                  id: Date.now().toString(),
+                  name: folderName,
+                  type: 'folder',
+                  items: [], // Initialize empty items array for new folder
+                  createdAt: new Date().toISOString()
+                };
+
+                updatedItems.push(newFolder);
+              }
+              return { ...item, items: updatedItems };
+            }
+            // Handle delete operation
+            return null;
+          }
+          
+          // If current item is a folder, recursively search its items
+          if (item.type === 'folder' && item.items) {
+            const updatedItems = findAndUpdateItems(item.items, targetId);
+            return { ...item, items: updatedItems.filter(Boolean) };
+          }
+          return item;
+        });
       };
-      setPlaygrounds([...playgrounds, newFolder]);
+
+      const updatedItems = findAndUpdateItems(folderDoc.data().items, nestedParentId).filter(Boolean);
+
+      await updateDoc(folderRef, {
+        items: updatedItems
+      });
+    } catch (error) {
+      dispatch(setError(`Operation failed: ${error.message}`));
     }
   };
 
-  const handleAddFile = (folderId) => {
-    const name = prompt('Enter file name:');
-    if (!name) return;
-
-    const language = prompt(`Choose language (${languages.join(', ')}):`, 'javascript');
-    if (!language || !languages.includes(language.toLowerCase())) return;
-
-    const newFile = {
-      id: Date.now(),
-      name,
-      language: language.toLowerCase(),
-      icon: <Code2 className={`w-12 h-12 ${getLanguageColor(language.toLowerCase())}`} />
-    };
-
-    setPlaygrounds(playgrounds.map(folder => {
-      if (folder.id === folderId) {
-        return {
-          ...folder,
-          items: [...folder.items, newFile]
-        };
-      }
-      return folder;
-    }));
+  const handleSignOut = async () => {
+    try {
+      await auth.signOut();
+      localStorage.clear();
+      dispatch(clearPlaygrounds());
+      navigate('/home/auth');
+    } catch (error) {
+      dispatch(setError("Failed to sign out. Please try again."));
+    }
   };
 
-  const handleFileClick = (folderId, fileId) => {
-    navigate(`/editor/${folderId}/${fileId}`);
-  };  
-  return (
-    <>
-      <div className='text-primaryText'>
-        Projects
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white text-xl">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          Loading Playgrounds...
+        </div>
       </div>
+    );
+  }
 
-      <div className="min-h-screen bg-black p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">My Playground</h1>
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white text-xl text-center p-8">
+          <div className="text-red-500 mb-4">⚠️</div>
+          <div className="mb-4">{error}</div>
           <button 
-            onClick={handleAddFolder}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+            onClick={handleSignOut}
+            className="px-4 py-2 bg-red-500 rounded hover:bg-red-600 transition-colors"
           >
-            + New Folder
+            Sign Out
           </button>
         </div>
+      </div>
+    );
+  }
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {playgrounds.map((section) => (
-            <div key={section.id} className="bg-gray-800 rounded-xl shadow-lg overflow-hidden w-full">
-              <div className="p-4 border-b border-gray-700">
+  const fileTypes = [
+    { ext: 'js', name: 'JavaScript', icon: <FaJs className="text-yellow-500" /> },
+    { ext: 'py', name: 'Python', icon: <FaPython className="text-blue-500" /> },
+    { ext: 'java', name: 'Java', icon: <FaJava className="text-red-500" /> },
+    { ext: 'ts', name: 'TypeScript', icon: <SiTypescript className="text-blue-400" /> },
+    { ext: 'html', name: 'HTML', icon: <FaHtml5 className="text-orange-500" /> },
+    { ext: 'css', name: 'CSS', icon: <FaCss3 className="text-blue-300" /> },
+    { ext: 'cpp', name: 'C++', icon: <SiCplusplus className="text-blue-600" /> },
+    { ext: 'rs', name: 'Rust', icon: <SiRust className="text-orange-600" /> },
+    { ext: 'go', name: 'Go', icon: <SiGo className="text-blue-400" /> },
+  ];
+
+  const handleAddFile = async (parentId) => {
+    try {
+      // First prompt for file name
+      const fileName = prompt("Enter file name (without extension):");
+      if (!fileName) return;
+
+      // Then prompt for extension
+      const fileExtension = prompt("Enter file extension (js,py,java,ts,html,css,cpp,rs,go,c):");
+      if (!fileExtension) return;
+
+      const fullFileName = `${fileName}.${fileExtension}`;
+
+      const newFile = {
+        id: Date.now().toString(),
+        name: fullFileName,
+        type: 'file',
+        content: '',
+        language: fileExtension,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const folderRef = doc(db, "playgrounds", parentId);
+      await updateDoc(folderRef, {
+        items: arrayUnion(newFile)
+      });
+    } catch (error) {
+      dispatch(setError(`Failed to add file: ${error.message}`));
+    }
+  };
+
+  const handleAddNestedFolder = async (parentId) => {
+    try {
+      const folderName = prompt("Enter folder name:");
+      if (!folderName) return;
+
+      const newFolder = {
+        id: Date.now().toString(),
+        name: folderName,
+        type: 'folder',
+        items: [],
+        createdAt: new Date().toISOString()
+      };
+
+      const parentFolder = playgrounds.find(p => p.id === parentId);
+      const updatedItems = [...(parentFolder.items || []), newFolder];
+
+      const folderRef = doc(db, "playgrounds", parentId);
+      await updateDoc(folderRef, {
+        items: updatedItems
+      });
+    } catch (error) {
+      dispatch(setError(`Failed to add nested folder: ${error.message}`));
+    }
+  };
+
+  const handleDelete = async (id, type) => {
+    if (!window.confirm(`Are you sure you want to delete this ${type}?`)) return;
+    
+    try {
+      await deleteDoc(doc(db, "playgrounds", id));
+    } catch (error) {
+      dispatch(setError(`Failed to delete ${type}: ${error.message}`));
+    }
+  };
+
+  const handleDeleteNestedItem = async (parentId, itemId) => {
+    try {
+      if (!window.confirm('Are you sure you want to delete this item?')) return;
+
+      const folderRef = doc(db, "playgrounds", parentId);
+      const folderDoc = await getDoc(folderRef);
+
+      if (!folderDoc.exists()) {
+        throw new Error("Parent folder not found");
+      }
+
+      const removeItem = (items) => {
+        return items.map(item => {
+          // If this is the item to delete, return null (it will be filtered out)
+          if (item.id === itemId) {
+            return null;
+          }
+          // If this is a folder, recursively check its items
+          if (item.type === 'folder' && item.items) {
+            const updatedItems = removeItem(item.items).filter(Boolean);
+            return { ...item, items: updatedItems };
+          }
+          return item;
+        }).filter(Boolean); // Remove null items
+      };
+
+      const updatedItems = removeItem(folderDoc.data().items);
+
+      await updateDoc(folderRef, {
+        items: updatedItems
+      });
+    } catch (error) {
+      dispatch(setError(`Failed to delete item: ${error.message}`));
+    }
+  };
+
+  // Recursive rendering function for nested items
+  const handleFileClick = (e, folderId, fileId) => {
+    e.preventDefault();
+    e.stopPropagation();  // Stop event bubbling
+    
+    if (!folderId || !fileId) {
+      console.error("Missing folderId or fileId");
+      return;
+    }
+    
+    const user = auth.currentUser;
+    if (!user) {
+      dispatch(setError("You must be logged in to access the editor"));
+      navigate('/home/auth');
+      return;
+    }
+
+    // Navigate to editor with the folder and file IDs
+    navigate(`/editor/${folderId}/${fileId}`);
+  };
+
+  const renderNestedItems = (items, parentId, level = 0) => {
+    return items?.map((item) => (
+      <div key={item.id} className="bg-gray-700/50 rounded-lg mb-2 overflow-hidden">
+        {item.type === 'file' ? (
+          // Separate file rendering
+          <div 
+            onClick={(e) => handleFileClick(e, parentId, item.id)}
+            className="flex items-center gap-2 py-3 px-4 cursor-pointer hover:bg-gray-600"
+          >
+            <div className="flex-1 flex items-center gap-2">
+              {getFileIcon(item.name)}
+              <span className="text-gray-200">{item.name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteNestedItem(parentId, item.id);
+                }}
+                className="p-1.5 hover:bg-gray-600 rounded text-gray-400 hover:text-red-500"
+                title="Delete"
+              >
+                <FaTrash size={14} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Folder rendering
+          <>
+            <div className="flex items-center gap-2 py-3 px-4">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFolder(item.id);
+                }}
+                className="bg-gray-600 p-1 rounded"
+              >
+                {expandedFolders.has(item.id) ? <FaChevronDown /> : <FaChevronRight />}
+              </button>
+              <div className="flex-1 flex items-center gap-2">
+                <FaFolder className="text-blue-500" />
+                <span className="text-gray-200">{item.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNestedOperation(parentId, item.id, 'add', 'file');
+                  }}
+                  className="p-1.5 hover:bg-gray-600 rounded text-gray-400 hover:text-blue-500"
+                  title="Add File"
+                >
+                  <FaPlus size={12} />
+                  <Code2 size={12} className="inline ml-1" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNestedOperation(parentId, item.id, 'add', 'folder');
+                  }}
+                  className="p-1.5 hover:bg-gray-600 rounded text-gray-400 hover:text-blue-500"
+                  title="Add Folder"
+                >
+                  <FaPlus size={12} />
+                  <FaFolder size={12} className="inline ml-1" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteNestedItem(parentId, item.id);
+                  }}
+                  className="p-1.5 hover:bg-gray-600 rounded text-gray-400 hover:text-red-500"
+                  title="Delete"
+                >
+                  <FaTrash size={14} />
+                </button>
+              </div>
+            </div>
+            {expandedFolders.has(item.id) && item.items && (
+              <div className="px-4 pb-3">
+                {renderNestedItems(item.items, parentId, level + 1)}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    ));
+  };
+
+  const handleAddFolder = async () => {
+    try {
+      const folderName = prompt("Enter folder name:");
+      if (!folderName) return;
+
+      const userUID = auth.currentUser?.uid;
+      if (!userUID) {
+        dispatch(setError("You must be logged in to create folders"));
+        return;
+      }
+
+      const newFolder = {
+        name: folderName,
+        type: 'folder',
+        items: [],
+        userId: userUID,  // Add this line
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, "playgrounds"), newFolder);
+    } catch (error) {
+      dispatch(setError(`Failed to create folder: ${error.message}`));
+    }
+  };
+
+  // Helper function to find nested folder
+  const findNestedFolder = (items, folderId) => {
+    for (const item of items) {
+      if (item.id === folderId) {
+        return item;
+      }
+      if (item.type === 'folder' && item.items) {
+        const found = findNestedFolder(item.items, folderId);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const renderPlaygroundItems = (playground) => {
+    if (!playground.items) return null;
+    return (
+      <div className="space-y-2">
+        {renderNestedItems(playground.items, playground.id)}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[#1e1e1e] text-white overflow-y-auto">
+      <div className="max-w-[1800px] mx-auto p-8">
+        <div className="w-full flex items-center justify-between gap-4 mb-8 sticky top-0 bg-[#1e1e1e] z-10 py-4">
+          <div className="flex items-center justify-center gap-6">
+            <button
+              onClick={handleAddFolder}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-3 transition-colors text-lg"
+            >
+              <FaPlus size={16} />
+              <FaFolder size={18} />
+              New Folder
+            </button>
+            <div className="h-14 px-8 rounded-xl bg-gradient-to-r from-blue-600 to-blue-400 flex items-center justify-center shadow-lg">
+              <span className="text-white text-2xl font-semibold">
+                Welcome, {localStorage.getItem('userName') || 'User'}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-lg"
+          >
+            Sign Out
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-6">
+          {playgrounds.map((playground) => (
+            <div key={playground.id} className="bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700">
+              <div className="p-3.5 bg-gray-750 border-b border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <FaFolder className="text-xl text-blue-500" />
-                    <h2 className="text-lg font-semibold text-white">{section.title}</h2>
+                    <FaFolder className="text-blue-500 text-2xl" />
+                    <h3 className="text-xl font-semibold">{playground.name}</h3>
                   </div>
                   <div className="flex items-center gap-3">
-                    <FaTrash 
-                      className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
-                      onClick={() => handleDeleteFolder(section.id)}
-                    />
-                    <FaPencilAlt 
-                      className="text-gray-400 hover:text-blue-500 cursor-pointer transition-colors"
-                      onClick={() => handleEditFolder(section.id)}
-                    />
-                    <button 
-                      onClick={() => handleAddFile(section.id)}
-                      className="px-3 py-1 bg-blue-500 text-sm text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1"
+                    <button
+                      onClick={() => handleAddFile(playground.id)}
+                      className="p-2 hover:bg-gray-600 rounded-lg text-gray-400 hover:text-blue-500 transition-colors"
+                      title="Add File"
                     >
-                      + Add New File
+                      <FaPlus size={14} />
+                      <Code2 size={14} className="inline ml-1" />
+                    </button>
+                    <button
+                      onClick={() => handleAddNestedFolder(playground.id)}
+                      className="p-2 hover:bg-gray-600 rounded-lg text-gray-400 hover:text-blue-500 transition-colors"
+                      title="Add Nested Folder"
+                    >
+                      <FaPlus size={14} />
+                      <FaFolder size={14} className="inline ml-1" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(playground.id, 'folder')}
+                      className="p-2 hover:bg-gray-600 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                      title="Delete Folder"
+                    >
+                      <FaTrash size={16} />
                     </button>
                   </div>
                 </div>
               </div>
-              
-              <div className="p-4">
-                <div className="space-y-3">
-                  {section.items.map((item) => (
-                    <div 
-                      key={item.id} 
-                      className="flex items-center p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-all cursor-pointer group"
-                      onClick={() => handleFileClick(section.id, item.id)}
-                    >
-                      <div className="mr-3">
-                        {React.cloneElement(item.icon, {
-                          className: `w-12 h-12 ${getLanguageColor(item.language)}`
-                        })}
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <h3 className="font-medium text-white group-hover:text-blue-400 transition-colors truncate">
-                          {item.name}
-                        </h3>
-                        <p className="text-sm text-gray-400 truncate">Language: {item.language}</p>
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        <FaTrash 
-                          className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
-                          onClick={(e) => handleDeleteFile(e, section.id, item.id)}
-                        />
-                        <FaPencilAlt 
-                          className="text-gray-400 hover:text-blue-500 cursor-pointer transition-colors"
-                          onClick={(e) => handleEditFile(e, section.id, item.id)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="p-4 h-[400px] overflow-y-auto custom-scrollbar">
+                {playground.items?.length > 0 ? (
+                  renderPlaygroundItems(playground)
+                ) : (
+                  <div className="text-gray-400 text-center py-4">No items in this folder</div>
+                )}
               </div>
             </div>
           ))}
         </div>
+        
+        {playgrounds.length === 0 && (
+          <div className="text-center text-gray-400 py-12 bg-gray-800 rounded-xl p-8">
+            <FaFolder className="text-blue-500 text-5xl mx-auto mb-6" />
+            <p className="text-2xl">No folders yet. Create a new folder to get started!</p>
+          </div>
+        )}
       </div>
     </div>
-    </>
-  )
-}
+  );
+};
 
-export default Projects
+export default Projects;
