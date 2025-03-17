@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setFileContent } from '../redux/slices/editorSlice';
-import * as monaco from 'monaco-editor';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { debounce } from 'lodash';
@@ -107,83 +106,63 @@ const CodeEditor = () => {
   const handleEditorChange = (value) => {
     if (!currentFile || !currentFolder) return;
     
-    // Update Redux store
     dispatch(setFileContent({ 
       fileId: currentFile.id, 
       content: value 
     }));
-
-    // Save to database
     debouncedUpdate(currentFile.id, value);
-  };
-
-  const handleEditorDidMount = (editor, monaco) => {
-    editorRef.current = editor;
   };
 
   if (!currentFile) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] text-gray-400">
-        <div className="text-center space-y-4">
-          <Code2 size={48} className="mx-auto text-gray-400" />
-          <p className="text-lg">Select a file to start editing</p>
-          <p className="text-sm opacity-60">Your code will appear here</p>
-        </div>
+      <div className="text-center space-y-4">
+        <Code2 size={48} className="mx-auto text-gray-400" />
+        <p className="text-lg">Select a file to start editing</p>
+        <p className="text-sm opacity-60">Your code will appear here</p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
-    <div className="w-full h-full">
-      <Editor
-        height="100%"
-        defaultLanguage={editorLanguage}
-        language={editorLanguage}
-        value={currentContent}
-        theme={selectedTheme}
-        onChange={handleEditorChange}
-        onMount={handleEditorDidMount}
-        options={{
-          minimap: { 
-            enabled: true,
-            scale: 10,
-            showSlider: "mouseover",
-            renderCharacters: false
-          },
-          fontSize: 19,
-          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-          fontLigatures: true,
-          lineHeight: 1.6,
-          letterSpacing: 0.5,
-          lineNumbers: 'on',
-          renderLineHighlight: 'all',
-          roundedSelection: false,
-          scrollBeyondLastLine: false,
-          automaticLayout: true,
-          wordWrap: 'on',
-          formatOnPaste: true,
-          formatOnType: true,
-          tabSize: 2,
-          cursorBlinking: 'smooth',
-          smoothScrolling: true,
-          contextmenu: true,
-          dragAndDrop: true,
-          links: true,
-          mouseWheelZoom: true,
-          parameterHints: true,
-          suggestOnTriggerCharacters: true,
-          snippetSuggestions: 'inline',
-          // Add these options to ensure consistent styling
-          glyphMargin: false,
-          folding: false,
-          lineDecorationsWidth: 0,
-          lineNumbersMinChars: 3,
-          renderIndentGuides: false,
-          overviewRulerBorder: false,
-          overviewRulerLanes: 0,
-        }}
-        key={currentFile.id}
-      />
+      <div className="w-full h-full">
+        {!currentFile ? (
+          <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] text-gray-400">
+            <div className="text-center space-y-4">
+              <Code2 size={48} className="mx-auto text-gray-400" />
+              <p className="text-lg">Select a file to start editing</p>
+              <p className="text-sm opacity-60">Your code will appear here</p>
+            </div>
+          </div>
+      ) : (
+        <Editor
+          height="100%"
+          defaultLanguage={editorLanguage}
+          language={editorLanguage}
+          value={currentContent}
+          theme={selectedTheme}
+          onChange={handleEditorChange}
+          onMount={(editor) => {
+            editorRef.current = editor;
+            setTimeout(() => editor.layout(), 100);
+          }}
+          options={{
+            fontSize: 19,
+            fontFamily: "'JetBrains Mono', monospace",
+            lineNumbers: 'on',
+            minimap: { enabled: true },
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            wordWrap: 'on',
+            formatOnPaste: false,
+            formatOnType: false,
+            cursorStyle: 'line',
+            cursorBlinking: 'blink',
+          }}
+          key={currentFile.id}
+        />
+      )}
     </div>
   );
 };
