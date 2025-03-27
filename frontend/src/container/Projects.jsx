@@ -539,6 +539,7 @@ const Projects = () => {
       dispatch(setError(`Failed to create folder: ${error.message}`));
     }
   };
+
   const findNestedFolder = (items, folderId) => {
     for (const item of items) {
       if (item.id === folderId) {
