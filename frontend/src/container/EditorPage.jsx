@@ -3,25 +3,89 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
-import { Code2 } from 'lucide-react'; // Add this import
-import { 
-  setCurrentFile, 
-  setFileContent,
-  closeFile
-} from '../redux/slices/editorSlice';
+import { Code2 } from 'lucide-react'; 
+import { setCurrentFile,setFileContent,closeFile} from '../redux/slices/editorSlice';
 import { setCurrentFolder } from '../redux/slices/fileSystemSlice';
 import { setError } from '../redux/slices/uiSlice';
 import { Header, Sidebar, Editor, IOPanel } from '../components';
-import '../config/editorConfig'; // Import to ensure editor config is loaded
+import '../config/editorConfig'; 
 import { FaTimes } from 'react-icons/fa';
+import { useLocation } from 'react-router-dom';
 
 const EditorPage = () => {
   const { folderId, fileId } = useParams();
+  const location = useLocation();
   const dispatch = useDispatch();
-  const navigate = useNavigate(); // Add navigate hook
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [roomId, setRoomId] = useState(null);
   
-  // Add effect to handle back button
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const roomParam = urlParams.get('room');
+    
+    if (roomParam) {
+      setRoomId(roomParam);
+      console.log("Joining collaborative room:", roomParam);
+      
+      const isCreator = roomParam.startsWith(localStorage.getItem('userUID'));
+      localStorage.setItem('isRoomOwner', isCreator.toString());
+      
+      const ws = new WebSocket('ws://localhost:8080');
+      
+      ws.onopen = () => {
+        const userId = localStorage.getItem('userUID') || 'anonymous-' + Math.random().toString(36).substring(2, 9);
+        const userName = localStorage.getItem('userName') || 'Anonymous';
+        
+        console.log(`Joining room ${roomParam} as ${userName} (${userId})`);
+        
+        ws.send(JSON.stringify({
+          type: 'join',
+          roomId: roomParam,
+          userId: userId,
+          userName: userName
+        }));
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Received message:', data.type);
+          switch (data.type) {
+            case 'userJoined':
+              console.log(`User joined: ${data.userName}`);
+              break;
+            case 'userLeft':
+              console.log(`User left: ${data.userName}`);
+              break;
+            case 'usersList':
+              console.log('Current users:', data.users);
+              break;
+            default:
+              break;
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    
+      return () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'leave',
+            roomId: roomParam,
+            userId: localStorage.getItem('userUID') || 'anonymous'
+          }));
+          ws.close();
+        }
+      };
+    }
+  }, [location.search]);
+  
   useEffect(() => {
     const handleBackButton = (e) => {
       e.preventDefault();
@@ -35,7 +99,6 @@ const EditorPage = () => {
     };
   }, [navigate]);
 
-  // Add missing state from Redux store
   const { isInputVisible, isOutputVisible } = useSelector((state) => state.ui);
   const { openFiles, currentFile, unsavedChanges } = useSelector((state) => state.editor);
 
@@ -51,49 +114,87 @@ const EditorPage = () => {
     }
     return null;
   };
-
+  
   useEffect(() => {
-    const loadFolderAndFile = async () => {
+    const urlParams = new URLSearchParams(location.search);
+    const roomParam = urlParams.get('room');
+    
+    if (roomParam) {
+      const isNewRoom = !localStorage.getItem('currentRoomId') || 
+                        localStorage.getItem('currentRoomId') !== roomParam;
+      
+      if (isNewRoom) {
+        const urlOrigin = new URL(document.referrer).origin;
+        const isFromSameOrigin = urlOrigin === window.location.origin;
+      
+        localStorage.setItem('isRoomOwner', (!isFromSameOrigin).toString());
+        localStorage.setItem('currentRoomId', roomParam);
+      }
+    } else {
+      localStorage.removeItem('isRoomOwner');
+      localStorage.removeItem('currentRoomId');
+    }
+  }, [location.search]);
+  
+  useEffect(() => {
+    const loadFolderData = async () => {
       if (!folderId) return;
-
+      
+      setLoading(true);
       try {
-        setLoading(true);
         const folderRef = doc(db, "playgrounds", folderId);
         const folderSnap = await getDoc(folderRef);
-
+        
         if (folderSnap.exists()) {
-          const folderData = { id: folderSnap.id, ...folderSnap.data() };
-          dispatch(setCurrentFolder(folderData));
-
-          // Clean up any open files that don't exist in the current folder
-          openFiles.forEach(file => {
-            if (!findFileInFolder(folderData.items, file.id)) {
-              dispatch(closeFile(file.id));
-            }
-          });
-
-          // If we have a fileId, find and set the current file
-          if (fileId && folderData.items) {
-            const file = findFileInFolder(folderData.items, fileId);
+          const folderData = folderSnap.data();
+          const transformedData = {
+            ...folderData,
+            id: folderId,
+            createdAt: folderData.createdAt?.toMillis() || Date.now()
+          };
+        
+          dispatch(setCurrentFolder(transformedData));
+          
+          if (fileId) {
+            const findFileInFolder = (items) => {
+              for (const item of items) {
+                if (item.id === fileId) {
+                  return item;
+                }
+                if (item.type === 'folder' && item.items) {
+                  const found = findFileInFolder(item.items);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            
+            const file = findFileInFolder(transformedData.items || []);
+            
             if (file) {
               dispatch(setCurrentFile(file));
               dispatch(setFileContent({ 
                 fileId: file.id, 
                 content: file.content || '' 
               }));
+            } else {
+              console.warn(`File with ID ${fileId} not found in folder`);
             }
           }
+        } else {
+          dispatch(setError('Folder not found'));
+          navigate('/home/projects');
         }
       } catch (error) {
-        console.error("Error loading folder:", error);
-        dispatch(setError("Failed to load folder"));
+        console.error('Error loading folder:', error);
+        dispatch(setError('Error loading folder'));
       } finally {
         setLoading(false);
       }
     };
-
-    loadFolderAndFile();
-  }, [folderId, fileId, dispatch, openFiles]);
+    
+    loadFolderData();
+  }, [folderId, fileId, dispatch, navigate]);
 
   if (loading) {
     return (
@@ -114,26 +215,20 @@ const EditorPage = () => {
   const handleCloseFile = async (e, fileId) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Get the remaining files before closing
+
     const remainingFiles = openFiles.filter(f => f.id !== fileId);
-    
-    // Close the current file first
     await dispatch(closeFile(fileId));
     
-    // Handle navigation and state updates
     if (remainingFiles.length > 0) {
       const nextFile = remainingFiles[remainingFiles.length - 1];
       await dispatch(setCurrentFile(nextFile));
       navigate(`/editor/${folderId}/${nextFile.id}`, { replace: true });
     } else {
-      // Explicitly set currentFile to null
       await dispatch(setCurrentFile(null));
       navigate(`/editor/${folderId}`, { replace: true });
     }
   };
 
-  // Add this check
   if (!folderId) {
     navigate('/home/projects', { replace: true });
     return null;
