@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import MonacoEditor from '@monaco-editor/react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setFileContent, clearUnsavedChanges } from '../redux/slices/editorSlice'; // Add clearUnsavedChanges
+import { setFileContent, clearUnsavedChanges } from '../redux/slices/editorSlice';
 import { editorOptions } from '../config/editorConfig';
 import { debounce } from 'lodash';
 import { Code2 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
+import AIAssistant from './AIAssistant';
 
 // Helper function to determine language from file name
 const getLanguageFromFileName = (fileName) => {
@@ -34,7 +35,7 @@ const Editor = () => {
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const dispatch = useDispatch();
-  const { currentFile, activeFiles, selectedTheme } = useSelector((state) => state.editor);
+  const { currentFile, activeFiles, selectedTheme, isAIEnabled } = useSelector((state) => state.editor);
   const { currentFolder } = useSelector((state) => state.fileSystem);
   
   const currentContent = currentFile ? activeFiles[currentFile.id] : '';
@@ -166,46 +167,52 @@ const Editor = () => {
   }
 
   return (
-    <div className="w-full h-full">
-      <MonacoEditor
-        height="100%"
-        defaultLanguage={editorLanguage}
-        language={editorLanguage}
-        value={currentContent}
-        theme={selectedTheme}
-        onChange={handleEditorChange}
-        onMount={handleEditorDidMount}
-        options={{
-          fontSize: 21,
-          fontFamily: "'Consolas', 'Courier New', monospace",
-          lineNumbers: 'on',
-          minimap: { enabled: true },
-          scrollBeyondLastLine: false,
-          automaticLayout: true,
-          wordWrap: 'on',
-          
-          // These options help fix cursor positioning issues
-          cursorStyle: 'line',
-          cursorBlinking: 'blink',
-          cursorSmoothCaretAnimation: 'on',
-          
-          // Disable features that might affect cursor positioning
-          formatOnPaste: false,
-          formatOnType: false,
-          
-          // Force LTR text direction
-          textDirection: 'ltr',
-          
-          // Disable ligatures which can cause cursor positioning issues
-          fontLigatures: false,
-          
-          // Disable RTL mirroring
-          disableMonospaceOptimizations: true
-        }}
-        key={currentFile.id}
-      />
+    <div className="w-full h-full relative">
+      <div className="h-full">
+        <MonacoEditor
+          height="100%"
+          defaultLanguage={editorLanguage}
+          language={editorLanguage}
+          value={currentContent}
+          theme={selectedTheme}
+          onChange={handleEditorChange}
+          onMount={handleEditorDidMount}
+          options={{
+            fontSize: 21,
+            fontFamily: "'Consolas', 'Courier New', monospace",
+            lineNumbers: 'on',
+            minimap: { enabled: true },
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            wordWrap: 'on',
+            
+            // These options help fix cursor positioning issues
+            cursorStyle: 'line',
+            cursorBlinking: 'blink',
+            cursorSmoothCaretAnimation: 'on',
+            
+            // Disable features that might affect cursor positioning
+            formatOnPaste: false,
+            formatOnType: false,
+            
+            // Force LTR text direction
+            textDirection: 'ltr',
+            
+            // Disable ligatures which can cause cursor positioning issues
+            fontLigatures: false,
+            
+            // Disable RTL mirroring
+            disableMonospaceOptimizations: true
+          }}
+          key={currentFile.id}
+        />
+      </div>
+      
+      {/* Render AI assistant when enabled */}
+      {isAIEnabled && <AIAssistant />}
     </div>
   );
 };
 
 export default Editor;
+

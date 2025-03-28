@@ -56,6 +56,9 @@ const editorSlice = createSlice({
     setTheme: (state, action) => {
       state.selectedTheme = action.payload;
     },
+    setIsAIEnabled: (state, action) => {
+      state.isAIEnabled = action.payload;
+    },
   },
 });
 
@@ -65,6 +68,7 @@ export const {
   closeFile,
   setLanguage, 
   setTheme, 
-  clearUnsavedChanges 
+  clearUnsavedChanges,
+  setIsAIEnabled
 } = editorSlice.actions;
 export default editorSlice.reducer;
