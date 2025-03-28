@@ -1,29 +1,66 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { setTheme, setCurrentFile, closeFile, setIsAIEnabled } from '../redux/slices/editorSlice';
-import { FaPlay, FaCode, FaUsers, FaTimes, FaRobot } from 'react-icons/fa';
+import { FaPlay, FaCode, FaUsers, FaTimes, FaCopy, FaCheck, FaRobot } from 'react-icons/fa';
 
 const Header = () => {
+  const { folderId, fileId } = useParams();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentFile, openFiles, unsavedChanges, selectedTheme, isAIEnabled } = useSelector((state) => state.editor);
+  const selectedTheme, isAIEnabled = useSelector((state) => state.editor.selectedTheme);
+  const [currentRoomId, setCurrentRoomId] = useState('');
   const themes = ['vs-dark', 'light', 'hc-black'];
-  const roomId = "1q2w3e4r5t6y"; // Replace with actual room ID from your state
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    
+    if (roomParam) {
+      setCurrentRoomId(roomParam);
+    } else {
+      const newRoomId = uuidv4().substring(0, 8);
+      setCurrentRoomId(newRoomId);
+      const newSearchParams = new URLSearchParams(window.location.search);
+      newSearchParams.set('room', newRoomId);
+      const newPath = `${window.location.pathname}${newSearchParams.toString() ? '?' : ''}${newSearchParams.toString()}`;
+      window.history.pushState(null, '', newPath);
+    }
+  }, []);
+
+  const joinRoom = (roomId) => {
+    console.log('Joining room:', roomId);
+  };
+
+  useEffect(() => {
+    if (currentRoomId) {
+      joinRoom(currentRoomId);
+    }
+  }, [currentRoomId]);
 
   const handleThemeChange = (e) => {
-    const newTheme = e.target.value;
-    if (newTheme) {
-      dispatch(setTheme(newTheme));
+    const theme = e.target.value;
+    dispatch(setTheme(theme));
+  };
+
+  const [copied, setCopied] = useState(false);
+  
+  const handleShareRoom = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    
+    if (roomParam) {
+      const shareableUrl = window.location.href;
+      
+      navigator.clipboard.writeText(shareableUrl)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(err => console.error('Failed to copy:', err));
     }
-  };
-
-  const handleFileTabClick = (file) => {
-    dispatch(setCurrentFile(file));
-  };
-
-  const handleCloseFile = (e, fileId) => {
-    e.stopPropagation();
-    dispatch(closeFile(fileId));
   };
 
   const handleAIToggle = (e) => {
@@ -79,11 +116,25 @@ const Header = () => {
             </label>
           </div>
 
-          {/* Room ID */}
-          <div className="flex items-center gap-2 bg-[#132F4C] px-4 py-2 rounded-lg border border-[#1E4976]">
-            <FaUsers className="text-blue-400" />
-            <span className="text-white text-sm">Room ID: {roomId}</span>
-          </div>
+          {/* Share Room Button */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleShareRoom}
+            className="flex items-center gap-2 bg-[#132F4C] px-4 py-2 rounded-lg border border-[#1E4976] 
+            hover:bg-[#1a3a5c] transition-colors duration-200"
+          >
+            {copied ? (
+              <>
+                <FaCheck className="text-green-400" />
+                <span className="text-green-400">Copied!</span>
+              </>
+            ) : (
+              <>
+                <FaUsers className="text-blue-400" />
+                <span className="text-white">Share Room</span>
+              </>
+            )}
+          </motion.button>
 
           {/* Run Button */}
           <motion.button

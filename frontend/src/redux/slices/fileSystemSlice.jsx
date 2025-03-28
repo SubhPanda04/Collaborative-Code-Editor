@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { Timestamp } from 'firebase/firestore';
 
 const initialState = {
   files: [],
@@ -7,7 +8,26 @@ const initialState = {
   folderStructure: null,
 };
 
-// Rename the helper function to avoid conflict
+const transformFirestoreData = (data) => {
+  if (!data) return null;
+  
+  if (data.createdAt instanceof Timestamp) {
+    return {
+      ...data,
+      createdAt: data.createdAt.toMillis()
+    };
+  }
+  
+  if (Array.isArray(data.items)) {
+    return {
+      ...data,
+      items: data.items.map(transformFirestoreData)
+    };
+  }
+  
+  return data;
+};
+
 const updateNestedItemHelper = (items, parentId, itemId, updateFn) => {
   return items.map(item => {
     if (item.id === parentId) {
@@ -37,7 +57,7 @@ const fileSystemSlice = createSlice({
       state.folders = action.payload;
     },
     setCurrentFolder: (state, action) => {
-      state.currentFolder = action.payload;
+      state.currentFolder = transformFirestoreData(action.payload);
     },
     setFolderStructure: (state, action) => {
       state.folderStructure = action.payload;

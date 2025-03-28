@@ -1,4 +1,18 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { Timestamp } from 'firebase/firestore';
+
+const transformPlaygroundData = (data) => {
+  if (!data) return null;
+  
+  if (data.createdAt instanceof Timestamp) {
+    return {
+      ...data,
+      createdAt: data.createdAt.toMillis()
+    };
+  }
+  
+  return data;
+};
 
 const initialState = {
   playgrounds: [],
@@ -11,8 +25,7 @@ const playgroundSlice = createSlice({
   initialState,
   reducers: {
     setPlaygrounds: (state, action) => {
-      console.log("Setting playgrounds in Redux:", action.payload);
-      state.playgrounds = action.payload;
+      state.playgrounds = action.payload.map(transformPlaygroundData);
     },
     setLoading: (state, action) => {
       state.loading = action.payload;

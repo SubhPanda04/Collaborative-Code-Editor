@@ -23,7 +23,7 @@ import { setCurrentFolder } from '../redux/slices/fileSystemSlice';
 import { setCurrentFile, setFileContent } from '../redux/slices/editorSlice';
 import { SiTypescript, SiCplusplus, SiRust, SiGo } from 'react-icons/si';
 
-// Add the findFileInFolder helper function at the top level
+
 const findFileInFolder = (items, targetFileId) => {
   for (const item of items) {
     if (item.id === targetFileId) {
@@ -83,40 +83,97 @@ const Projects = () => {
   };
 
   useEffect(() => {
-    console.log("Projects component mounted");
-    dispatch(setLoading(true));
-    const userUID = auth.currentUser?.uid;
+    let isComponentMounted = true;
+    let unsubscribeListener = null;
     
-    if (!userUID) {
-      console.log("No user ID found");
-      dispatch(setLoading(false));
-      return;
-    }
-
-    console.log("Fetching playgrounds for user:", userUID);
-    const q = query(
-      collection(db, "playgrounds"),
-      where("userId", "==", userUID)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log("Snapshot received, document count:", snapshot.docs.length);
-      const playgroundsData = snapshot.docs.map(doc => {
-        console.log("Playground data:", doc.data());
-        return {
-          id: doc.id,
-          ...doc.data()
-        };
-      });
-      dispatch(setPlaygrounds(playgroundsData));
-      dispatch(setLoading(false));
-    });
-
-    return () => {
-      console.log("Cleaning up Projects component");
-      unsubscribe();
+    const fetchPlaygrounds = async () => {
+      if (!isComponentMounted) return;
+      
+      try {
+        dispatch(setLoading(true));
+      
+        const userUID = auth.currentUser?.uid;
+        
+        if (!userUID) {
+          console.log("No user ID found");
+          if (isComponentMounted) dispatch(setLoading(false));
+          return;
+        }
+      
+        const playgroundsQuery = query(
+          collection(db, "playgrounds"),
+          where("userId", "==", userUID)
+        );
+      
+        unsubscribeListener = onSnapshot(
+          playgroundsQuery,
+          (querySnapshot) => {
+            if (!isComponentMounted) return;
+            
+            const processedData = querySnapshot.docs.map(doc => {
+              const data = doc.data();
+              const cleanObject = {
+                id: doc.id,
+                name: data.name,
+                type: data.type,
+                userId: data.userId,
+                createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now(),
+                updatedAt: data.updatedAt?.toMillis ? data.updatedAt.toMillis() : Date.now()
+              };
+            
+              if (Array.isArray(data.items)) {
+                cleanObject.items = JSON.parse(JSON.stringify(
+                  data.items.map(item => {
+                    if (item.createdAt?.toMillis) {
+                      item.createdAt = item.createdAt.toMillis();
+                    }
+                    if (item.updatedAt?.toMillis) {
+                      item.updatedAt = item.updatedAt.toMillis();
+                    }
+                    return item;
+                  })
+                ));
+              } else {
+                cleanObject.items = [];
+              }
+              
+              return cleanObject;
+            });
+            
+            if (isComponentMounted) {
+              dispatch(setPlaygrounds(processedData));
+              dispatch(setLoading(false));
+            }
+          },
+          (error) => {
+            console.error("Firestore query error:", error);
+            if (isComponentMounted) {
+              dispatch(setError(`Failed to load projects: ${error.message}`));
+              dispatch(setLoading(false));
+            }
+          }
+        );
+      } catch (error) {
+        console.error("Error in fetchPlaygrounds:", error);
+        if (isComponentMounted) {
+          dispatch(setError(`Failed to load projects: ${error.message}`));
+          dispatch(setLoading(false));
+        }
+      }
     };
-  }, [dispatch]);
+    
+    fetchPlaygrounds();
+    
+    return () => {
+      console.log("Projects component unmounting - cleaning up listeners");
+      isComponentMounted = false;
+      
+      if (unsubscribeListener) {
+        unsubscribeListener();
+        unsubscribeListener = null;
+      }
+    };
+  }, [dispatch]); 
 
   const handleNestedOperation = async (parentFolderId, nestedParentId, operation, type) => {
     try {
@@ -160,7 +217,7 @@ const Projects = () => {
                   id: Date.now().toString(),
                   name: folderName,
                   type: 'folder',
-                  items: [], // Initialize empty items array for new folder
+                  items: [], 
                   createdAt: new Date().toISOString()
                 };
 
@@ -168,11 +225,9 @@ const Projects = () => {
               }
               return { ...item, items: updatedItems };
             }
-            // Handle delete operation
             return null;
           }
-          
-          // If current item is a folder, recursively search its items
+
           if (item.type === 'folder' && item.items) {
             const updatedItems = findAndUpdateItems(item.items, targetId);
             return { ...item, items: updatedItems.filter(Boolean) };
@@ -244,11 +299,8 @@ const Projects = () => {
 
   const handleAddFile = async (parentId) => {
     try {
-      // First prompt for file name
       const fileName = prompt("Enter file name (without extension):");
       if (!fileName) return;
-
-      // Then prompt for extension
       const fileExtension = prompt("Enter file extension (js,py,java,ts,html,css,cpp,rs,go,c):");
       if (!fileExtension) return;
 
@@ -321,17 +373,15 @@ const Projects = () => {
 
       const removeItem = (items) => {
         return items.map(item => {
-          // If this is the item to delete, return null (it will be filtered out)
           if (item.id === itemId) {
             return null;
           }
-          // If this is a folder, recursively check its items
           if (item.type === 'folder' && item.items) {
             const updatedItems = removeItem(item.items).filter(Boolean);
             return { ...item, items: updatedItems };
           }
           return item;
-        }).filter(Boolean); // Remove null items
+        }).filter(Boolean); 
       };
 
       const updatedItems = removeItem(folderDoc.data().items);
@@ -344,7 +394,6 @@ const Projects = () => {
     }
   };
 
-  // Recursive rendering function for nested items
   const handleFileClick = (e, folderId, fileId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -383,7 +432,6 @@ const Projects = () => {
     return items?.map((item) => (
       <div key={item.id} className="bg-gray-700/50 rounded-lg mb-2 overflow-hidden">
         {item.type === 'file' ? (
-          // Separate file rendering
           <div 
             onClick={(e) => handleFileClick(e, parentId, item.id)}
             className="flex items-center gap-2 py-3 px-4 cursor-pointer hover:bg-gray-600"
@@ -406,7 +454,6 @@ const Projects = () => {
             </div>
           </div>
         ) : (
-          // Folder rendering
           <>
             <div className="flex items-center gap-2 py-3 px-4">
               <button
@@ -483,7 +530,7 @@ const Projects = () => {
         name: folderName,
         type: 'folder',
         items: [],
-        userId: userUID,  // Add this line
+        userId: userUID,  
         createdAt: serverTimestamp()
       };
 
@@ -493,7 +540,6 @@ const Projects = () => {
     }
   };
 
-  // Helper function to find nested folder
   const findNestedFolder = (items, folderId) => {
     for (const item of items) {
       if (item.id === folderId) {
