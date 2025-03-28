@@ -9,6 +9,7 @@ import { Code2, Share2, Copy, Check } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { toast } from 'react-hot-toast';
+import AIAssistant from './AIAssistant';
 
 const getLanguageFromFileName = (fileName) => {
   if (!fileName) return 'plaintext';
@@ -37,7 +38,7 @@ const Editor = () => {
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const dispatch = useDispatch();
-  const { currentFile, activeFiles, selectedTheme } = useSelector((state) => state.editor);
+  const { currentFile, activeFiles, selectedTheme, isAIEnabled } = useSelector((state) => state.editor);
   const { currentFolder } = useSelector((state) => state.fileSystem);
   const location = useLocation();
   const navigate = useNavigate();
@@ -375,3 +376,4 @@ const Editor = () => {
 };
 
 export default Editor;
+

@@ -3,14 +3,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { setTheme, setCurrentFile, closeFile } from '../redux/slices/editorSlice';
-import { FaPlay, FaCode, FaUsers, FaTimes, FaCopy, FaCheck } from 'react-icons/fa';
+import { setTheme, setCurrentFile, closeFile, setIsAIEnabled } from '../redux/slices/editorSlice';
+import { FaPlay, FaCode, FaUsers, FaTimes, FaCopy, FaCheck, FaRobot } from 'react-icons/fa';
 
 const Header = () => {
   const { folderId, fileId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const selectedTheme = useSelector((state) => state.editor.selectedTheme);
+  const selectedTheme, isAIEnabled = useSelector((state) => state.editor.selectedTheme);
   const [currentRoomId, setCurrentRoomId] = useState('');
   const themes = ['vs-dark', 'light', 'hc-black'];
 
@@ -63,6 +63,10 @@ const Header = () => {
     }
   };
 
+  const handleAIToggle = (e) => {
+    dispatch(setIsAIEnabled(e.target.checked));
+  };
+
   return (
     <div className="w-full flex flex-col bg-[#031d38] border-b border-[#1E4976]">
       {/* Main header */}
@@ -91,6 +95,27 @@ const Header = () => {
 
         {/* Right section */}
         <div className="flex items-center gap-4">
+          {/* AI Toggle */}
+          <div className="flex items-center gap-2 bg-[#132F4C] px-4 py-2 rounded-lg border border-[#1E4976]">
+            <FaRobot className="text-purple-400" />
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isAIEnabled}
+                onChange={handleAIToggle}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 
+                peer-focus:ring-purple-800 rounded-full peer 
+                peer-checked:after:translate-x-full peer-checked:after:border-white 
+                after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
+                after:bg-white after:border-gray-300 after:border after:rounded-full 
+                after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600">
+              </div>
+              <span className="ml-3 text-sm font-medium text-white">AI Assistant</span>
+            </label>
+          </div>
+
           {/* Share Room Button */}
           <motion.button
             whileTap={{ scale: 0.97 }}
