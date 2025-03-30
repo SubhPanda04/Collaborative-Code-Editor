@@ -5,33 +5,38 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { setTheme, setCurrentFile, closeFile, setIsAIEnabled } from '../redux/slices/editorSlice';
 import { FaPlay, FaCode, FaUsers, FaTimes, FaCopy, FaCheck, FaRobot } from 'react-icons/fa';
+import { toast } from 'react-hot-toast'; // Add this import for toast notifications
 
 const Header = () => {
   const { folderId, fileId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const selectedTheme, isAIEnabled = useSelector((state) => state.editor.selectedTheme);
+  // Fix the destructuring here
+  const { currentFile, openFiles, unsavedChanges, selectedTheme, isAIEnabled } = useSelector((state) => state.editor);
   const [currentRoomId, setCurrentRoomId] = useState('');
   const themes = ['vs-dark', 'light', 'hc-black'];
 
+  // Modified room handling approach
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
     
     if (roomParam) {
       setCurrentRoomId(roomParam);
+      console.log("Found existing room in URL:", roomParam);
     } else {
+      // Only create a new room ID if one doesn't exist
       const newRoomId = uuidv4().substring(0, 8);
       setCurrentRoomId(newRoomId);
-      const newSearchParams = new URLSearchParams(window.location.search);
-      newSearchParams.set('room', newRoomId);
-      const newPath = `${window.location.pathname}${newSearchParams.toString() ? '?' : ''}${newSearchParams.toString()}`;
-      window.history.pushState(null, '', newPath);
+      console.log("Created new room ID:", newRoomId);
+      
+      // Don't automatically add room to URL - wait for explicit sharing
     }
   }, []);
 
   const joinRoom = (roomId) => {
     console.log('Joining room:', roomId);
+    // Additional room joining logic can be added here
   };
 
   useEffect(() => {
@@ -47,19 +52,30 @@ const Header = () => {
 
   const [copied, setCopied] = useState(false);
   
+  // Modified share room function
   const handleShareRoom = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomParam = urlParams.get('room');
-    
-    if (roomParam) {
-      const shareableUrl = window.location.href;
+    // Always use the current room ID
+    if (currentRoomId) {
+      // First ensure the room ID is in the URL
+      if (!window.location.search.includes('room=')) {
+        const newPath = `${window.location.pathname}?room=${currentRoomId}`;
+        window.history.pushState(null, '', newPath);
+      }
+      
+      // Create the shareable URL with the ngrok domain
+      const ngrokDomain = 'd2c5-103-92-44-199.ngrok-free.app';
+      const shareableUrl = `https://${ngrokDomain}/editor/${folderId}/${fileId}?room=${currentRoomId}`;
       
       navigator.clipboard.writeText(shareableUrl)
         .then(() => {
           setCopied(true);
+          toast.success('Room link copied to clipboard!');
           setTimeout(() => setCopied(false), 2000);
         })
-        .catch(err => console.error('Failed to copy:', err));
+        .catch(err => {
+          console.error('Failed to copy:', err);
+          toast.error('Failed to copy link');
+        });
     }
   };
 
