@@ -1,103 +1,156 @@
 const WebSocket = require('ws');
-const { v4: uuidv4 } = require('uuid');
-const wss = new WebSocket.Server({ port: 8080 });
+const http = require('http');
+const url = require('url');
 
-const rooms = new Map();
-
+// Enable more detailed logging
 const debug = true;
 function log(...args) {
   if (debug) console.log(new Date().toISOString(), ...args);
 }
 
-wss.on('connection', (ws) => {
+// Create HTTP server
+const server = http.createServer((req, res) => {
+  log('HTTP request received:', req.url);
+  
+  // Add CORS headers with more permissive settings
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  // Add a health check endpoint
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', message: 'WebSocket server is running' }));
+    return;
+  }
+  
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('WebSocket server is running');
+});
+
+// Create WebSocket server with proper configuration
+const wss = new WebSocket.Server({ 
+  server,
+  // No path restriction to allow connections from any path
+  verifyClient: (info) => {
+    log('Connection attempt from:', info.origin, info.req.url);
+    return true; // Accept all connections
+  }
+});
+
+// Track rooms and clients
+const rooms = new Map();
+const pendingJoinRequests = new Map();
+
+wss.on('connection', (ws, req) => {
   log('New WebSocket connection established');
-  ws.id = uuidv4();
+  
+  ws.isAlive = true;
+  
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
   
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      log('Received message:', data.type, 'for room:', data.roomId);
+      log('Received message:', data.type);
       
       switch (data.type) {
         case 'join':
-          handleJoin(ws, data);
-          break;
-        case 'joinAsOwner':
-          handleJoinAsOwner(ws, data);
-          break;
-        case 'requestJoin':
-          handleRequestJoin(ws, data);
-          break;
-        case 'acceptJoinRequest':
-          handleAcceptJoinRequest(ws, data);
-          break;
-        case 'rejectJoinRequest':
-          handleRejectJoinRequest(ws, data);
+          handleJoinRequest(ws, data);
           break;
         case 'code':
           handleCodeUpdate(ws, data);
           break;
-        case 'leave':
-          handleLeave(ws, data);
-          break;
-        case 'getUsersList':
-          handleGetUsersList(ws, data);
-          break;
+        default:
+          log('Unknown message type:', data.type);
       }
     } catch (error) {
-      console.error('Error processing message:', error);
+      log('Error processing message:', error);
     }
   });
-
+  
   ws.on('close', () => {
-    log('WebSocket connection closed:', ws.id);
-    handleDisconnect(ws);
+    log('WebSocket connection closed');
+    // Handle cleanup when a client disconnects
+    for (const [roomId, room] of rooms.entries()) {
+      if (room.clients.has(ws)) {
+        room.clients.delete(ws);
+        log(`Client removed from room ${roomId}`);
+        
+        // Notify other clients in the room
+        broadcastToRoom(roomId, {
+          type: 'userLeft',
+          userId: room.userIds.get(ws)
+        });
+        
+        room.userIds.delete(ws);
+        
+        // If room is empty, remove it
+        if (room.clients.size === 0) {
+          rooms.delete(roomId);
+          log(`Room ${roomId} removed (empty)`);
+        }
+      }
+    }
   });
   
   ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
+    log('WebSocket error:', error);
   });
 });
 
-function handleJoin(ws, data) {
+function handleJoinRequest(ws, data) {
   const { roomId, userId, userName } = data;
   
-  if (!roomId || !userId) {
-    log('Invalid join data:', data);
+  if (!roomId) {
+    log('Invalid join request (no roomId):', data);
     return;
   }
   
-  log(`User ${userName} (${userId}) joining room ${roomId}`);
+  log(`Join request for room ${roomId} from user ${userId} (${userName})`);
   
+  // Create room if it doesn't exist
   if (!rooms.has(roomId)) {
-    rooms.set(roomId, new Map());
+    log(`Creating new room: ${roomId}`);
+    rooms.set(roomId, {
+      clients: new Set(),
+      userIds: new Map(),
+      userNames: new Map(),
+      owner: userId
+    });
   }
   
   const room = rooms.get(roomId);
-  room.set(userId, { 
-    ws, 
-    userName: userName || 'Anonymous',
+  
+  // Add client to room
+  room.clients.add(ws);
+  room.userIds.set(ws, userId);
+  room.userNames.set(userId, userName);
+  
+  log(`User ${userId} (${userName}) joined room ${roomId}`);
+  
+  // Notify client that join was successful
+  ws.send(JSON.stringify({
+    type: 'joinRequestAccepted',
+    roomId,
     userId
-  });
+  }));
   
-  ws.userId = userId;
-  ws.roomId = roomId;
-  ws.userName = userName || 'Anonymous';
-  
-  // Notify all users in the room about new connection
+  // Notify other clients in the room
   broadcastToRoom(roomId, {
     type: 'userJoined',
     userId,
-    userName: ws.userName
-  });
-  
-  const usersList = Array.from(room.values()).map(user => user.userName);
-  log('Sending users list to new user:', usersList);
-  
-  ws.send(JSON.stringify({
-    type: 'usersList',
-    users: usersList
-  }));
+    userName
+  }, ws);
 }
 
 function handleCodeUpdate(ws, data) {
@@ -116,280 +169,45 @@ function handleCodeUpdate(ws, data) {
       code,
       fileId,
       userId
-    });
+    }, ws);
   }
 }
 
-function handleLeave(ws, data) {
-  const { roomId, userId } = data;
-  
-  if (!roomId || !userId) {
-    log('Invalid leave data:', data);
-    return;
-  }
-  
-  log(`User ${userId} leaving room ${roomId}`);
-  
-  if (rooms.has(roomId)) {
-    const room = rooms.get(roomId);
-    const user = room.get(userId);
-    const userName = user ? user.userName : 'Unknown';
-    
-    room.delete(userId);
-    if (room.size === 0) {
-      rooms.delete(roomId);
-      log(`Room ${roomId} deleted (empty)`);
-    }
-    
-    broadcastToRoom(roomId, {
-      type: 'userLeft',
-      userId,
-      userName
-    });
-  }
-}
-
-function handleJoinAsOwner(ws, data) {
-  const { roomId, userId, userName } = data;
-  
-  if (!roomId || !userId) {
-    log('Invalid join as owner data:', data);
-    return;
-  }
-  
-  log(`User ${userName} (${userId}) joining room ${roomId} as owner`);
-  
-  if (!rooms.has(roomId)) {
-    rooms.set(roomId, new Map());
-    rooms.get(roomId).owner = userId;
-  }
-  
-  const room = rooms.get(roomId);
-  room.set(userId, { 
-    ws, 
-    userName: userName || 'Anonymous',
-    userId,
-    isOwner: true
-  });
-  ws.userId = userId;
-  ws.roomId = roomId;
-  ws.userName = userName || 'Anonymous';
-  ws.isOwner = true;
-  
-  broadcastToRoom(roomId, {
-    type: 'userJoined',
-    userId,
-    userName: ws.userName,
-    isOwner: true
-  });
-  
-  const usersList = Array.from(room.values())
-    .filter(user => !user.isPending)
-    .map(user => user.userName);
-  
-  log('Sending users list to owner:', usersList);
-  
-  ws.send(JSON.stringify({
-    type: 'usersList',
-    users: usersList
-  }));
-}
-
-function handleRequestJoin(ws, data) {
-  const { roomId, userId, userName } = data;
-  
-  if (!roomId || !userId) {
-    log('Invalid join request data:', data);
-    return;
-  }
-  
-  log(`User ${userName} (${userId}) requesting to join room ${roomId}`);
-  
-  if (!rooms.has(roomId)) {
-    // Room doesn't exist
-    ws.send(JSON.stringify({
-      type: 'error',
-      message: 'Room does not exist'
-    }));
-    return;
-  }
-  
-  const room = rooms.get(roomId);
-  room.set(userId, { 
-    ws, 
-    userName: userName || 'Anonymous',
-    userId,
-    isPending: true
-  });
-  ws.userId = userId;
-  ws.roomId = roomId;
-  ws.userName = userName || 'Anonymous';
-  ws.isPending = true;
-  
-  const owner = Array.from(room.values()).find(user => user.isOwner);
-  
-  if (owner && owner.ws) {
-    owner.ws.send(JSON.stringify({
-      type: 'joinRequest',
-      userId,
-      userName: ws.userName
-    }));
-    
-    ws.send(JSON.stringify({
-      type: 'joinRequestPending',
-      message: 'Your request to join is pending approval'
-    }));
-  } else {
-    handleAcceptJoinRequest(null, {
-      roomId,
-      userId,
-      userName: ws.userName
-    });
-  }
-}
-
-function handleAcceptJoinRequest(ws, data) {
-  const { roomId, userId, userName } = data;
-  
-  if (!roomId || !userId) {
-    log('Invalid accept join request data:', data);
-    return;
-  }
-  
-  log(`Accepting join request for user ${userName} (${userId}) in room ${roomId}`);
-  
-  if (!rooms.has(roomId)) {
-    return;
-  }
-  
-  const room = rooms.get(roomId);
-  const user = room.get(userId);
-  
-  if (!user) {
-    log(`User ${userId} not found in room ${roomId}`);
-    return;
-  }
-  user.isPending = false;
-  if (user.ws) {
-    user.ws.isPending = false;
-    user.ws.send(JSON.stringify({
-      type: 'joinRequestAccepted',
-      roomId
-    }));
-    
-    // Notify all users in the room about new connection
-    broadcastToRoom(roomId, {
-      type: 'userJoined',
-      userId,
-      userName: user.userName
-    });
-    const usersList = Array.from(room.values())
-      .filter(u => !u.isPending)
-      .map(u => u.userName);
-    
-    user.ws.send(JSON.stringify({
-      type: 'usersList',
-      users: usersList
-    }));
-  }
-}
-function handleRejectJoinRequest(ws, data) {
-  const { roomId, userId, userName } = data;
-  
-  if (!roomId || !userId) {
-    log('Invalid reject join request data:', data);
-    return;
-  }
-  
-  log(`Rejecting join request for user ${userName} (${userId}) in room ${roomId}`);
-  
-  if (!rooms.has(roomId)) {
-    return;
-  }
-  
-  const room = rooms.get(roomId);
-  const user = room.get(userId);
-  
-  if (!user) {
-    log(`User ${userId} not found in room ${roomId}`);
-    return;
-  }
-  
-  if (user.ws) {
-    user.ws.send(JSON.stringify({
-      type: 'joinRequestRejected',
-      roomId,
-      userId
-    }));
-  }
-  room.delete(userId);
-}
-
-function handleGetUsersList(ws, data) {
-  const { roomId } = data;
-  
-  if (!roomId) {
-    log('Invalid getUsersList data:', data);
-    return;
-  }
-  
-  if (rooms.has(roomId)) {
-    const room = rooms.get(roomId);
-    const usersList = Array.from(room.values())
-      .filter(user => !user.isPending)
-      .map(user => user.userName);
-    
-    log('Sending users list:', usersList);
-    
-    ws.send(JSON.stringify({
-      type: 'usersList',
-      users: usersList
-    }));
-  }
-}
-
-function handleDisconnect(ws) {
-  const { roomId, userId, userName } = ws;
-  
-  if (roomId && userId) {
-    log(`User ${userName} (${userId}) disconnected from room ${roomId}`);
-    
-    if (rooms.has(roomId)) {
-      const room = rooms.get(roomId);
-      room.delete(userId);
-      
-      if (room.size === 0) {
-        rooms.delete(roomId);
-        log(`Room ${roomId} deleted (empty)`);
-      } else {
-        broadcastToRoom(roomId, {
-          type: 'userLeft',
-          userId,
-          userName: userName || 'Unknown'
-        });
-      }
-    }
-  }
-}
-
-function broadcastToRoom(roomId, message) {
+function broadcastToRoom(roomId, message, excludeClient = null) {
   if (!rooms.has(roomId)) {
     log(`Cannot broadcast to non-existent room: ${roomId}`);
     return;
   }
   
   const room = rooms.get(roomId);
-  log(`Broadcasting ${message.type} to ${room.size} users in room ${roomId}`);
+  const messageStr = JSON.stringify(message);
   
-  let sentCount = 0;
-  for (const user of room.values()) {
-    if (user.ws.readyState === WebSocket.OPEN) {
-      user.ws.send(JSON.stringify(message));
-      sentCount++;
+  for (const client of room.clients) {
+    if (client !== excludeClient && client.readyState === WebSocket.OPEN) {
+      client.send(messageStr);
     }
   }
-  
-  log(`Message sent to ${sentCount}/${room.size} users`);
 }
 
-module.exports = wss;
+// Ping clients periodically to keep connections alive
+const interval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      log('Terminating inactive connection');
+      return ws.terminate();
+    }
+    
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
+wss.on('close', () => {
+  clearInterval(interval);
+});
+
+// Start the server on port 8080 and bind to all interfaces
+server.listen(8080, '0.0.0.0', () => {
+  log('WebSocket server is running on port 8080');
+  log('To test the server, visit http://localhost:8080/health');
+});
