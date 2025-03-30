@@ -75,12 +75,12 @@ const Editor = () => {
       navigate(newUrl, { replace: true });
       
       setTimeout(() => {
-        const ngrokDomain = localStorage.getItem('ngrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
+        const ngrokDomain = localStorage.getItem('ngrokUrl') || 'ebf5-103-92-44-199.ngrok-free.app';
         const shareableUrl = `https://${ngrokDomain.trim()}${newUrl}`;
         copyToClipboard(shareableUrl);
       }, 100);
     } else {
-      const ngrokDomain = localStorage.getItem('ngrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
+      const ngrokDomain = localStorage.getItem('ngrokUrl') || 'ebf5-103-92-44-199.ngrok-free.app';
       const shareableUrl = `https://${ngrokDomain.trim()}${window.location.pathname}?room=${roomParam}`;
       copyToClipboard(shareableUrl);
     }
@@ -142,7 +142,7 @@ const Editor = () => {
     }
 
     const connectWebSocket = () => {
-      const wsNgrokDomain = localStorage.getItem('wsNgrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
+      const wsNgrokDomain = localStorage.getItem('wsNgrokUrl') || 'ebf5-103-92-44-199.ngrok-free.app';
       const socketUrl = `wss://${wsNgrokDomain.trim()}/ws`;
       
       console.log('Attempting WebSocket connection to:', socketUrl);
@@ -308,7 +308,7 @@ const Editor = () => {
     if (!roomParam || !currentFile?.id) return;
 
     const connectWebSocket = () => {
-      const wsNgrokDomain = localStorage.getItem('wsNgrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
+      const wsNgrokDomain = localStorage.getItem('wsNgrokUrl') || 'ebf5-103-92-44-199.ngrok-free.app';
       const socketUrl = `wss://${wsNgrokDomain.trim()}/ws`;
       
       try {
@@ -407,11 +407,26 @@ const Editor = () => {
             automaticLayout: true,
             scrollBeyondLastLine: false,
             minimap: { enabled: false },
-            fontSize: 14,
+            fontSize: 20, // Increased from 14
             fontFamily: "'Consolas', 'Courier New', monospace",
-            lineNumbers: 'on'
+            lineNumbers: 'on',
+            lineHeight: 29, // Added line height
+            letterSpacing: 0.5, // Added letter spacing
+            renderWhitespace: 'none',
+            smoothScrolling: true,
+            cursorBlinking: 'smooth',
+            cursorSmoothCaretAnimation: true,
+            formatOnPaste: true,
+            formatOnType: false, // Prevents auto-formatting while typing
+            renderControlCharacters: false,
+            renderIndentGuides: true,
+            scrollbar: {
+              useShadows: false,
+              verticalScrollbarSize: 10,
+              horizontalScrollbarSize: 10
+            }
           }}
-          key={`${currentFile?.id}-${roomParam}-${currentContent}`} // Ensure re-render when room changes
+          key={currentFile?.id} // Removed room param and content from key to prevent re-renders
         />
       </div>
       {isAIEnabled && <AIAssistant/>}
