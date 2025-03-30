@@ -4,7 +4,8 @@ import { Home } from './container/index.jsx';
 import EditorPage from './container/EditorPage.jsx';
 import { Provider } from 'react-redux';
 import store from './redux/store.jsx';
-import { Toaster } from 'react-hot-toast'; // Add this import
+import { Toaster } from 'react-hot-toast';
+import NgrokUrlSetter from './components/NgrokUrlSetter';
 
 const AppContent = () => {
   return (
@@ -16,6 +17,7 @@ const AppContent = () => {
         <Route path="/" element={<Navigate to="/home/auth" replace />} />
         <Route path="*" element={<Navigate to="/home/auth" replace />} />
       </Routes>
+      <NgrokUrlSetter />
     </>
   );
 };
