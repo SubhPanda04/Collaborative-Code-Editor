@@ -4,13 +4,28 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { Code2 } from 'lucide-react'; 
-import { setCurrentFile,setFileContent,closeFile} from '../redux/slices/editorSlice';
+import { setCurrentFile, setFileContent, closeFile } from '../redux/slices/editorSlice';
 import { setCurrentFolder } from '../redux/slices/fileSystemSlice';
 import { setError } from '../redux/slices/uiSlice';
 import { Header, Sidebar, Editor, IOPanel } from '../components';
 import '../config/editorConfig'; 
 import { FaTimes } from 'react-icons/fa';
 import { useLocation } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+
+// Add the missing findFileInFolder function
+const findFileInFolder = (items, targetFileId) => {
+  for (const item of items) {
+    if (item.id === targetFileId) {
+      return item;
+    }
+    if (item.type === 'folder' && item.items) {
+      const found = findFileInFolder(item.items, targetFileId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
 
 const EditorPage = () => {
   const { folderId, fileId } = useParams();
@@ -18,8 +33,56 @@ const EditorPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [error, setErrorState] = useState(null);
   const [roomId, setRoomId] = useState(null);
+  const [copied, setCopied] = useState(false);
   
+  // Get required state from Redux store
+  const { currentFile, openFiles, unsavedChanges } = useSelector((state) => state.editor);
+  const { isInputVisible, isOutputVisible } = useSelector((state) => state.ui);
+  
+  const urlParams = new URLSearchParams(location.search);
+  const roomParam = urlParams.get('room');
+  
+  // Define the copyToClipboard function
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success('Room link copied to clipboard!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      toast.error('Failed to copy link');
+    }
+  };
+  
+  // Define the copyShareableLink function
+  const copyShareableLink = () => {
+    // Use a hardcoded domain or get from localStorage
+    const ngrokDomain = localStorage.getItem('ngrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
+    
+    if (!roomParam) {
+      const newRoomId = Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('isRoomOwner', 'true');
+      const currentPath = window.location.pathname;
+      const newUrl = `${currentPath}?room=${newRoomId}`;
+      
+      navigate(newUrl, { replace: true });
+      
+      setTimeout(() => {
+        // Use hardcoded domain instead of ngrokConfig
+        const shareableUrl = `https://${ngrokDomain}${newUrl}`;
+        copyToClipboard(shareableUrl);
+      }, 100);
+    } else {
+      // Use hardcoded domain instead of ngrokConfig
+      const shareableUrl = `https://${ngrokDomain}${window.location.pathname}?room=${roomParam}`;
+      copyToClipboard(shareableUrl);
+    }
+  };
+  
+  // First useEffect - Handle room parameter
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const roomParam = urlParams.get('room');
@@ -31,50 +94,67 @@ const EditorPage = () => {
       const isCreator = roomParam.startsWith(localStorage.getItem('userUID'));
       localStorage.setItem('isRoomOwner', isCreator.toString());
       
-      const ws = new WebSocket('ws://localhost:8080');
-      
-      ws.onopen = () => {
-        const userId = localStorage.getItem('userUID') || 'anonymous-' + Math.random().toString(36).substring(2, 9);
-        const userName = localStorage.getItem('userName') || 'Anonymous';
+      // Use a direct WebSocket URL without any URL constructor
+      let ws;
+      try {
+        // Use hardcoded WebSocket URL or get from localStorage
+        const wsNgrokDomain = localStorage.getItem('wsNgrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
+        console.log(`Connecting to WebSocket at wss://${wsNgrokDomain}/ws`);
+        ws = new WebSocket(`wss://${wsNgrokDomain}/ws`);
         
-        console.log(`Joining room ${roomParam} as ${userName} (${userId})`);
+        ws.onopen = () => {
+          console.log("WebSocket connection established successfully");
+          const userId = localStorage.getItem('userUID') || 'anonymous-' + Math.random().toString(36).substring(2, 9);
+          const userName = localStorage.getItem('userName') || 'Anonymous';
+          
+          console.log(`Joining room ${roomParam} as ${userName} (${userId})`);
+          
+          ws.send(JSON.stringify({
+            type: 'join',
+            roomId: roomParam,
+            userId: userId,
+            userName: userName
+          }));
+        };
         
-        ws.send(JSON.stringify({
-          type: 'join',
-          roomId: roomParam,
-          userId: userId,
-          userName: userName
-        }));
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('Received message:', data.type);
-          switch (data.type) {
-            case 'userJoined':
-              console.log(`User joined: ${data.userName}`);
-              break;
-            case 'userLeft':
-              console.log(`User left: ${data.userName}`);
-              break;
-            case 'usersList':
-              console.log('Current users:', data.users);
-              break;
-            default:
-              break;
+        // Add more detailed error handling
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          toast.error('Failed to connect to collaboration server');
+        };
+        
+        ws.onclose = () => {
+          console.log('WebSocket connection closed');
+        };
+        
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('Received message:', data.type);
+            switch (data.type) {
+              case 'userJoined':
+                console.log(`User joined: ${data.userName}`);
+                break;
+              case 'userLeft':
+                console.log(`User left: ${data.userName}`);
+                break;
+              case 'usersList':
+                console.log('Current users:', data.users);
+                break;
+              default:
+                break;
+            }
+          } catch (error) {
+            console.error('Error processing WebSocket message:', error);
           }
-        } catch (error) {
-          console.error('Error processing WebSocket message:', error);
-        }
-      };
+        };
+      } catch (error) {
+        console.error('WebSocket connection error:', error);
+        toast.error('Failed to establish WebSocket connection');
+      }
       
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-    
       return () => {
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'leave',
             roomId: roomParam,
@@ -84,117 +164,63 @@ const EditorPage = () => {
         }
       };
     }
-  }, [location.search]);
-  
+  }, [location.search, navigate]);
+
+  // Second useEffect - Fetch folder data
   useEffect(() => {
-    const handleBackButton = (e) => {
-      e.preventDefault();
-      navigate('/home/projects');
-    };
-
-    window.addEventListener('popstate', handleBackButton);
-
-    return () => {
-      window.removeEventListener('popstate', handleBackButton);
-    };
-  }, [navigate]);
-
-  const { isInputVisible, isOutputVisible } = useSelector((state) => state.ui);
-  const { openFiles, currentFile, unsavedChanges } = useSelector((state) => state.editor);
-
-  const findFileInFolder = (items, targetFileId) => {
-    for (const item of items) {
-      if (item.id === targetFileId) {
-        return item;
+    const fetchFolderData = async () => {
+      if (!folderId) {
+        console.log("No folder ID provided, skipping folder fetch");
+        setLoading(false);
+        return;
       }
-      if (item.type === 'folder' && item.items) {
-        const found = findFileInFolder(item.items, targetFileId);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-  
-  useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
-    const roomParam = urlParams.get('room');
-    
-    if (roomParam) {
-      const isNewRoom = !localStorage.getItem('currentRoomId') || 
-                        localStorage.getItem('currentRoomId') !== roomParam;
       
-      if (isNewRoom) {
-        const urlOrigin = new URL(document.referrer).origin;
-        const isFromSameOrigin = urlOrigin === window.location.origin;
-      
-        localStorage.setItem('isRoomOwner', (!isFromSameOrigin).toString());
-        localStorage.setItem('currentRoomId', roomParam);
-      }
-    } else {
-      localStorage.removeItem('isRoomOwner');
-      localStorage.removeItem('currentRoomId');
-    }
-  }, [location.search]);
-  
-  useEffect(() => {
-    const loadFolderData = async () => {
-      if (!folderId) return;
-      
+      console.log("Fetching folder data for ID:", folderId);
       setLoading(true);
       try {
         const folderRef = doc(db, "playgrounds", folderId);
         const folderSnap = await getDoc(folderRef);
         
         if (folderSnap.exists()) {
+          console.log("Folder data found:", folderSnap.id);
           const folderData = folderSnap.data();
           const transformedData = {
             ...folderData,
             id: folderId,
-            createdAt: folderData.createdAt?.toMillis() || Date.now()
+            items: folderData.items || []
           };
-        
+          
           dispatch(setCurrentFolder(transformedData));
           
+          // If fileId is provided, set the current file
           if (fileId) {
-            const findFileInFolder = (items) => {
-              for (const item of items) {
-                if (item.id === fileId) {
-                  return item;
-                }
-                if (item.type === 'folder' && item.items) {
-                  const found = findFileInFolder(item.items);
-                  if (found) return found;
-                }
-              }
-              return null;
-            };
+            console.log("File ID provided, setting current file:", fileId);
+            const fileItem = findFileInFolder(transformedData.items, fileId);
             
-            const file = findFileInFolder(transformedData.items || []);
-            
-            if (file) {
-              dispatch(setCurrentFile(file));
-              dispatch(setFileContent({ 
-                fileId: file.id, 
-                content: file.content || '' 
-              }));
+            if (fileItem) {
+              console.log("File found in folder structure:", fileItem.name);
+              dispatch(setCurrentFile(fileItem));
+              dispatch(setFileContent({ fileId: fileItem.id, content: fileItem.content || '' }));
             } else {
-              console.warn(`File with ID ${fileId} not found in folder`);
+              console.error("File not found in folder structure");
+              setErrorState("File not found in this playground");
             }
           }
         } else {
-          dispatch(setError('Folder not found'));
-          navigate('/home/projects');
+          console.error("Folder not found");
+          setErrorState("Playground not found");
         }
       } catch (error) {
-        console.error('Error loading folder:', error);
-        dispatch(setError('Error loading folder'));
+        console.error("Error fetching folder data:", error);
+        setErrorState("Error loading playground");
+        dispatch(setError("Error loading playground"));
       } finally {
         setLoading(false);
       }
     };
     
-    loadFolderData();
-  }, [folderId, fileId, dispatch, navigate]);
+    fetchFolderData();
+  }, [folderId, fileId, dispatch]);
 
   if (loading) {
     return (
@@ -215,7 +241,7 @@ const EditorPage = () => {
   const handleCloseFile = async (e, fileId) => {
     e.preventDefault();
     e.stopPropagation();
-
+  
     const remainingFiles = openFiles.filter(f => f.id !== fileId);
     await dispatch(closeFile(fileId));
     
@@ -243,7 +269,7 @@ const EditorPage = () => {
         </div>
         <div className="flex-1 flex flex-col relative overflow-hidden">
           {/* File tabs section */}
-          {openFiles.length > 0 && (
+          {openFiles && openFiles.length > 0 && (
             <div className="w-full flex items-center overflow-x-auto bg-[#0a2744] px-2 py-1">
               {openFiles.map((file) => (
                 <div 
@@ -256,7 +282,7 @@ const EditorPage = () => {
                   }`}
                 >
                   <span className="truncate text-sm">
-                    {file.name} {unsavedChanges[file.id] ? '•' : ''}
+                    {file.name} {unsavedChanges && unsavedChanges[file.id] ? '•' : ''}
                   </span>
                   <button
                     onClick={(e) => handleCloseFile(e, file.id)}
@@ -268,10 +294,10 @@ const EditorPage = () => {
               ))}
             </div>
           )}
-
+    
           {/* Editor or Empty State */}
           <div className={`w-full ${(isInputVisible || isOutputVisible) ? 'h-[calc(100%-300px)]' : 'h-full'} overflow-hidden`}>
-            {openFiles.length > 0 && currentFile ? (
+            {openFiles && openFiles.length > 0 && currentFile ? (
               <Editor />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400">
