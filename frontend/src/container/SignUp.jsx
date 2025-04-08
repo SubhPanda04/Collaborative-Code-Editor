@@ -73,7 +73,7 @@ const SignUp = () => {
         }
     };
   return (
-    <div className='w-full h-screen flex flex-col items-center justify-start pt-20'>
+    <div className='w-full h-screen flex flex-col items-center justify-start pt-20 bg-[#051630]'>
       <div className='w-full flex flex-col items-center justify-center'>
         <p className='text-2xl text-primaryText mb-6'>Join with Us!</p>
 
@@ -163,16 +163,12 @@ const SignUp = () => {
 
             {/* or section */}
 
-            <div className='flex items-center justify-center gap-12'>
-                <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
-                <p className="text-sm text-[rgba(256,256,256,0.2)]">OR</p>
-                <div className='h-[1px] bg-[rgba(256,256,256,0.2)] rounded-md w-24'></div>
-            </div>
+            
 
 
             {/* sign in with github */}
 
-            <motion.div 
+            {/*<motion.div 
             onClick={signINWithGitHub}
             className='flex items-center justify-center gap-3 bg-[rgba(256,256,256,0.2)]
              backdrop-blur-md w-full py-3 rounded-xl hover:bg-[rgba(256,256,256,0.4)]
@@ -180,7 +176,7 @@ const SignUp = () => {
             whileTap={{scale : 0.9}}>
                 <FaGithub className='text-white'/>
                 <p className='text-xl text-white'>Sign in with GitHub</p>
-            </motion.div>
+            </motion.div>*/}
         </div>
       </div>
     </div>

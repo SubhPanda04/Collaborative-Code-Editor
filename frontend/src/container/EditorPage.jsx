@@ -4,9 +4,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { Code2 } from 'lucide-react'; 
-import { setCurrentFile,setFileContent,closeFile} from '../redux/slices/editorSlice';
+import { setCurrentFile, setFileContent, closeFile } from '../redux/slices/editorSlice';
 import { setCurrentFolder } from '../redux/slices/fileSystemSlice';
 import { setError } from '../redux/slices/uiSlice';
+import { resetExecution } from '../redux/slices/codeExecutionSlice';
 import { Header, Sidebar, Editor, IOPanel } from '../components';
 import '../config/editorConfig'; 
 import { FaTimes } from 'react-icons/fa';
@@ -172,6 +173,7 @@ const EditorPage = () => {
             const file = findFileInFolder(transformedData.items || []);
             
             if (file) {
+              dispatch(resetExecution());
               dispatch(setCurrentFile(file));
               dispatch(setFileContent({ 
                 fileId: file.id, 
@@ -209,6 +211,7 @@ const EditorPage = () => {
 
   const handleFileTabClick = (file) => {
     dispatch(setCurrentFile(file));
+    dispatch(resetExecution());
     navigate(`/editor/${folderId}/${file.id}`);
   };
 
@@ -218,6 +221,7 @@ const EditorPage = () => {
 
     const remainingFiles = openFiles.filter(f => f.id !== fileId);
     await dispatch(closeFile(fileId));
+    dispatch(resetExecution());
     
     if (remainingFiles.length > 0) {
       const nextFile = remainingFiles[remainingFiles.length - 1];
@@ -249,53 +253,51 @@ const EditorPage = () => {
                 <div 
                   key={file.id}
                   onClick={() => handleFileTabClick(file)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-t-md mr-1 cursor-pointer transition-colors duration-200 max-w-[200px] ${
-                    currentFile?.id === file.id 
-                      ? 'bg-[#1e1e1e] text-white' 
-                      : 'bg-[#132F4C] text-gray-300 hover:bg-[#1a3a5c]'
-                  }`}
+                  className={`flex items-center gap-2 px-3 py-2 mr-1 rounded-md cursor-pointer
+                    ${currentFile?.id === file.id ? 'bg-[#132F4C] text-white' : 'text-gray-400 hover:bg-[#0d2f49]'}`}
                 >
-                  <span className="truncate text-sm">
-                    {file.name} {unsavedChanges[file.id] ? '•' : ''}
-                  </span>
-                  <button
-                    onClick={(e) => handleCloseFile(e, file.id)}
-                    className="p-1 rounded-full hover:bg-gray-700 text-gray-400 hover:text-white"
+                  <Code2 className="w-4 h-4" />
+                  <span className="text-sm">{file.name}</span>
+                  {unsavedChanges[file.id] && <span className="text-blue-400 text-xs ml-1">*</span>}
+                  <button 
+                    onClick={(e) => handleCloseFile(e, file.id)} 
+                    className="ml-1 text-xs text-gray-500 hover:text-white"
                   >
-                    <FaTimes size={12} />
+                    <FaTimes />
                   </button>
                 </div>
               ))}
             </div>
           )}
-
-          {/* Editor or Empty State */}
-          <div className={`w-full ${(isInputVisible || isOutputVisible) ? 'h-[calc(100%-300px)]' : 'h-full'} overflow-hidden`}>
-            {openFiles.length > 0 && currentFile ? (
-              <Editor />
+         
+          {/* Editor content */}
+          <div className={`flex-grow ${!currentFile ? 'flex items-center justify-center' : ''}`}>
+            {currentFile ? (
+              <Editor fileId={currentFile.id} />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <Code2 className="w-16 h-16 mx-auto mb-4" />
-                  <p className="text-xl">Click a file in the sidebar to start editing</p>
-                </div>
+              <div className="text-gray-400 text-center flex flex-col items-center">
+                <Code2 className="w-12 h-12 mb-4 opacity-40" />
+                <p>Select a file from the sidebar to start coding</p>
+                <p className="mt-2 text-sm text-gray-500">or create a new file</p>
               </div>
             )}
           </div>
           
-          {/* IO Panel container */}
-          {(isInputVisible || isOutputVisible) && (
-            <div className="w-full h-[300px] flex border-t border-[#1E4976] overflow-hidden">
-              {isInputVisible && (
-                <div className="flex-1">
-                  <IOPanel type="input" />
-                </div>
-              )}
-              {isOutputVisible && (
-                <div className="flex-1 border-l border-[#1E4976]">
-                  <IOPanel type="output" />
-                </div>
-              )}
+          {/* IO Panel */}
+          {currentFile && (
+            <div className="h-1/4 border-t border-[#132F4C]">
+              <div className="flex h-full">
+                {isInputVisible && (
+                  <div className="w-1/2 h-full border-r border-[#132F4C]">
+                    <IOPanel type="input" />
+                  </div>
+                )}
+                {isOutputVisible && (
+                  <div className={`${isInputVisible ? 'w-1/2' : 'w-full'} h-full`}>
+                    <IOPanel type="output" />
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

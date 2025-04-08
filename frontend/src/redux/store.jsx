@@ -4,6 +4,7 @@ import fileSystemReducer from './slices/fileSystemSlice';
 import uiReducer from './slices/uiSlice';
 import userReducer from './slices/userSlice';
 import playgroundReducer from './slices/playgroundSlice';
+import codeExecutionReducer from './slices/codeExecutionSlice';
 
 const nonSerializableMiddleware = (store) => (next) => (action) => {
   if (action.payload) {
@@ -33,6 +34,7 @@ const store = configureStore({
     ui: uiReducer,
     user: userReducer,
     playground: playgroundReducer,
+    codeExecution: codeExecutionReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
