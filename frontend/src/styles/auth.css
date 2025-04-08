@@ -1,0 +1,25 @@
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  background-color: #0a192f; /* Dark blue background color */
+}
+
+/* Update the form container to have better contrast with dark background */
+.auth-form-container {
+  background-color: #172a45;
+  border-radius: 8px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure text has good contrast with dark background */
+.auth-form-container h2, 
+.auth-form-container label {
+  color: #e6f1ff;
+} 
