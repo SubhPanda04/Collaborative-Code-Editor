@@ -14,7 +14,6 @@
     "lodash": "^4.17.21",
     "lucide-react": "^0.475.0",
     "monaco-themes": "^0.4.4",
-    "ngrok": "^5.0.0-beta.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.5.2",
@@ -55,6 +54,5 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17"
-  },
-  "proxy": "https://da2b-103-92-44-199.ngrok-free.app"
+  }
 }

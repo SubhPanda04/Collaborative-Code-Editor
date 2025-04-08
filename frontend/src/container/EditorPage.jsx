@@ -59,8 +59,9 @@ const EditorPage = () => {
   
   // Define the copyShareableLink function
   const copyShareableLink = () => {
-    // Use a hardcoded domain or get from localStorage
-    const ngrokDomain = localStorage.getItem('ngrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
+    // Use current window location instead of ngrok
+    const protocol = window.location.protocol;
+    const host = window.location.host;
     
     if (!roomParam) {
       const newRoomId = Math.random().toString(36).substring(2, 9);
@@ -71,13 +72,11 @@ const EditorPage = () => {
       navigate(newUrl, { replace: true });
       
       setTimeout(() => {
-        // Use hardcoded domain instead of ngrokConfig
-        const shareableUrl = `https://${ngrokDomain}${newUrl}`;
+        const shareableUrl = `${protocol}//${host}${newUrl}`;
         copyToClipboard(shareableUrl);
       }, 100);
     } else {
-      // Use hardcoded domain instead of ngrokConfig
-      const shareableUrl = `https://${ngrokDomain}${window.location.pathname}?room=${roomParam}`;
+      const shareableUrl = `${protocol}//${host}${window.location.pathname}?room=${roomParam}`;
       copyToClipboard(shareableUrl);
     }
   };
@@ -97,10 +96,13 @@ const EditorPage = () => {
       // Use a direct WebSocket URL without any URL constructor
       let ws;
       try {
-        // Use hardcoded WebSocket URL or get from localStorage
-        const wsNgrokDomain = localStorage.getItem('wsNgrokUrl') || 'd2c5-103-92-44-199.ngrok-free.app';
-        console.log(`Connecting to WebSocket at wss://${wsNgrokDomain}/ws`);
-        ws = new WebSocket(`wss://${wsNgrokDomain}/ws`);
+        // Use WebSocket URL based on current window location
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = window.location.host;
+        const socketUrl = `${wsProtocol}//${wsHost}/ws`;
+        
+        console.log(`Connecting to WebSocket at ${socketUrl}`);
+        ws = new WebSocket(socketUrl);
         
         ws.onopen = () => {
           console.log("WebSocket connection established successfully");

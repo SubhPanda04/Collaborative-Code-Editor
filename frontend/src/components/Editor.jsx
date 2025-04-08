@@ -65,7 +65,11 @@ const Editor = () => {
     return getLanguageFromFileName(currentFile.name);
   }, [currentFile?.name]);
 
+  // Improved copyShareableLink function that uses window location
   const copyShareableLink = () => {
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    
     if (!roomParam) {
       const newRoomId = Math.random().toString(36).substring(2, 9);
       localStorage.setItem('isRoomOwner', 'true');
@@ -75,13 +79,11 @@ const Editor = () => {
       navigate(newUrl, { replace: true });
       
       setTimeout(() => {
-        const ngrokDomain = localStorage.getItem('ngrokUrl') || 'ebf5-103-92-44-199.ngrok-free.app';
-        const shareableUrl = `https://${ngrokDomain.trim()}${newUrl}`;
+        const shareableUrl = `${protocol}//${host}${newUrl}`;
         copyToClipboard(shareableUrl);
       }, 100);
     } else {
-      const ngrokDomain = localStorage.getItem('ngrokUrl') || 'ebf5-103-92-44-199.ngrok-free.app';
-      const shareableUrl = `https://${ngrokDomain.trim()}${window.location.pathname}?room=${roomParam}`;
+      const shareableUrl = `${protocol}//${host}${window.location.pathname}?room=${roomParam}`;
       copyToClipboard(shareableUrl);
     }
   };
@@ -134,7 +136,7 @@ const Editor = () => {
     [currentFolder]
   );
 
-  // Enhanced WebSocket useEffect
+  // Enhanced WebSocket useEffect - KEEP THIS ONE
   useEffect(() => {
     if (!roomParam || !currentFile?.id) {
       console.log('Missing room param or file ID:', { roomParam, fileId: currentFile?.id });
@@ -142,8 +144,10 @@ const Editor = () => {
     }
 
     const connectWebSocket = () => {
-      const wsNgrokDomain = localStorage.getItem('wsNgrokUrl') || 'ebf5-103-92-44-199.ngrok-free.app';
-      const socketUrl = `wss://${wsNgrokDomain.trim()}/ws`;
+      // Use WebSocket URL based on current window location
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.host;
+      const socketUrl = `${wsProtocol}//${wsHost}/ws`;
       
       console.log('Attempting WebSocket connection to:', socketUrl);
       
