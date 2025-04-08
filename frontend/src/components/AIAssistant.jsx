@@ -18,20 +18,31 @@ const AIAssistant = () => {
     if (!prompt.trim()) return;
     setLoading(true);
     try {
-      // Add this line to check if API key is being read
-      console.log("API Key available:", process.env.REACT_APP_GEMINI_API_KEY ? "Yes" : "No");
+      // Check if API key is being read
+      const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+      console.log("API Key available:", apiKey ? "Yes" : "No");
       
-      const genAI = new GoogleGenerativeAI(process.env.REACT_APP_GEMINI_API_KEY);
+      
+      if (!apiKey) {
+        throw new Error("API key is not available. Please check your .env file.");
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const result = await model.generateContent(prompt);
       const response = result.response.text();
       
-      console.log("AI Response:", response); // Log the response to the console
+      console.log("AI Response:", response);
       return response;
     } catch (error) {
       console.error("Error generating response:", error);
-      return "Failed to fetch response";
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      return `Failed to fetch response. Error: ${error.message}. Please check your API key and try again.`;
     } finally {
       setLoading(false);
     }

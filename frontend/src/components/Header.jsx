@@ -5,14 +5,20 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { setTheme, setCurrentFile, closeFile, setIsAIEnabled } from '../redux/slices/editorSlice';
 import { FaPlay, FaCode, FaUsers, FaTimes, FaCopy, FaCheck, FaRobot } from 'react-icons/fa';
+import { executeCode, getLanguageId } from '../services/codeExecutionService';
+import { setExecuting, setOutput, setExecutionError, resetExecution } from '../redux/slices/codeExecutionSlice';
+import { toast } from 'react-hot-toast';
 
 const Header = () => {
   const { folderId, fileId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const selectedTheme, isAIEnabled = useSelector((state) => state.editor.selectedTheme);
+  const { currentFile, openFiles, unsavedChanges, selectedTheme, isAIEnabled } = useSelector((state) => state.editor);
+  const { activeFiles } = useSelector((state) => state.editor);
+  const { input } = useSelector((state) => state.codeExecution);
   const [currentRoomId, setCurrentRoomId] = useState('');
   const themes = ['vs-dark', 'light', 'hc-black'];
+  const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -65,6 +71,49 @@ const Header = () => {
 
   const handleAIToggle = (e) => {
     dispatch(setIsAIEnabled(e.target.checked));
+  };
+
+  const handleRunCode = async () => {
+    if (!currentFile || !activeFiles[currentFile.id]) {
+      toast.error('No file selected or file content is empty');
+      return;
+    }
+
+    setIsRunning(true);
+    dispatch(resetExecution());
+    dispatch(setExecuting(true));
+
+    try {
+      // Get the language ID from the file extension
+      const languageId = getLanguageId(currentFile.name);
+      
+      // Get the code from the current file
+      const codeToExecute = activeFiles[currentFile.id];
+      
+      // Execute the code with the input from the input panel
+      const result = await executeCode(codeToExecute, languageId, input);
+
+      if (result.success) {
+        // Set the output in the global state
+        let finalOutput = result.output;
+        
+        // If there was an error in the compilation/execution, append it
+        if (result.error) {
+          finalOutput += '\n\n' + result.error;
+        }
+        
+        dispatch(setOutput(finalOutput));
+      } else {
+        // Handle execution error
+        dispatch(setExecutionError(result.error));
+      }
+    } catch (error) {
+      console.error('Error running code:', error);
+      dispatch(setExecutionError('Unexpected error: ' + error.message));
+    } finally {
+      dispatch(setExecuting(false));
+      setIsRunning(false);
+    }
   };
 
   return (
@@ -139,12 +188,26 @@ const Header = () => {
           {/* Run Button */}
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={() => console.log('Run code functionality to be implemented')}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg 
-            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500"
+            onClick={handleRunCode}
+            disabled={isRunning || !currentFile}
+            className={`flex items-center gap-2 ${
+              isRunning || !currentFile 
+                ? 'bg-green-700 opacity-70 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700'
+            } text-white px-4 py-2 rounded-lg 
+            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500`}
           >
-            <FaPlay className="text-sm" />
-            <span>Run</span>
+            {isRunning ? (
+              <>
+                <FaPlay className="text-sm animate-pulse" />
+                <span>Running...</span>
+              </>
+            ) : (
+              <>
+                <FaPlay className="text-sm" />
+                <span>Run</span>
+              </>
+            )}
           </motion.button>
         </div>
       </div>
