@@ -43,8 +43,7 @@ const Editor = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [ws, setWs] = useState(null);
-  const [joinStatus, setJoinStatus] = useState('idle');
+  // Remove WebSocket state
   const [copied, setCopied] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
   
@@ -180,134 +179,21 @@ const Editor = () => {
     }
   };
 
+  // Remove WebSocket connection initialization
   useEffect(() => {
     if (roomParam) {
-      console.log('Initializing WebSocket connection for room:', roomParam);
-      
-      const socket = new WebSocket('ws://localhost:8080');
-      
-      socket.onopen = () => {
-        console.log('WebSocket connection established');
-        
-        const isRoomOwner = localStorage.getItem('isRoomOwner') === 'true';
-        const userId = localStorage.getItem('userUID') || 'anonymous-' + Math.random().toString(36).substring(2, 9);
-        const userName = localStorage.getItem('userName') || 'Anonymous';
-        
-        if (isRoomOwner) {
-          setJoinStatus('owner');
-          socket.send(JSON.stringify({
-            type: 'joinAsOwner',
-            roomId: roomParam,
-            userId: userId,
-            userName: userName
-          }));
-        } else {
-          setJoinStatus('pending');
-          socket.send(JSON.stringify({
-            type: 'requestJoin',
-            roomId: roomParam,
-            userId: userId,
-            userName: userName
-          }));
-        }
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.type !== 'code') {
-            console.log('Received message:', data.type);
-          }
-          
-          switch (data.type) {
-            case 'joinRequestAccepted':
-              setJoinStatus('accepted');
-              break;
-              
-            case 'joinRequestRejected':
-              setJoinStatus('rejected');
-              if (data.userId === localStorage.getItem('userUID')) {
-                alert('Your request to join the room was rejected.');
-                window.location.href = '/home/projects';
-              }
-              break;
-              
-            case 'joinRequestPending':
-              setJoinStatus('pending');
-              break;
-              
-            case 'code':
-              const myUserId = localStorage.getItem('userUID');
-              if (data.fileId === currentFile?.id && data.userId !== myUserId) {
-                dispatch(setFileContent({
-                  fileId: data.fileId,
-                  content: data.code
-                }));
-                
-                contentCache.set(data.fileId, data.code);
-                
-                if (editorRef.current) {
-                  const currentModel = editorRef.current.getModel();
-                  if (currentModel) {
-                    const selections = editorRef.current.getSelections();
-                    currentModel.setValue(data.code);
-                    if (selections) {
-                      editorRef.current.setSelections(selections);
-                    }
-                  }
-                }
-              }
-              break;
-              
-            default:
-              break;
-          }
-        } catch (error) {
-          console.error('Error processing WebSocket message:', error);
-        }
-      };
-      
-      socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-      
-      setWs(socket);
-      
-      return () => {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            type: 'leave',
-            roomId: roomParam,
-            userId: localStorage.getItem('userUID') || 'anonymous'
-          }));
-          socket.close();
-        }
-      };
+      console.log('Room ID:', roomParam);
+      // We'll keep the room ID functionality but remove the WebSocket connection
     }
-  }, [roomParam, dispatch, currentFile]);
+  }, [roomParam]);
 
   const handleEditorChange = (value) => {
-    if (!currentFile || !currentFolder) return;
-    dispatch(setFileContent({ 
-      fileId: currentFile.id, 
-      content: value 
-    }));
+    if (!currentFile) return;
+    
+    dispatch(setFileContent({ id: currentFile.id, content: value }));
+    
+    // Remove WebSocket broadcast
     debouncedUpdate(currentFile.id, value);
-    
-    const urlParams = new URLSearchParams(location.search);
-    const roomParam = urlParams.get('room');
-    
-    if (ws && ws.readyState === WebSocket.OPEN && roomParam && 
-        (joinStatus === 'accepted' || joinStatus === 'owner')) {
-      ws.send(JSON.stringify({
-        type: 'code',
-        roomId: roomParam,
-        fileId: currentFile.id,
-        code: value,
-        userId: localStorage.getItem('userUID') || 'anonymous'
-      }));
-    }
   };
 
   if (!currentFile) {

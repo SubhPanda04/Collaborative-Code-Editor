@@ -10,7 +10,7 @@ const Header = () => {
   const { folderId, fileId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const selectedTheme, isAIEnabled = useSelector((state) => state.editor.selectedTheme);
+  const {selectedTheme, isAIEnabled} = useSelector((state) => state.editor.selectedTheme);
   const [currentRoomId, setCurrentRoomId] = useState('');
   const themes = ['vs-dark', 'light', 'hc-black'];
 
@@ -52,6 +52,7 @@ const Header = () => {
     const roomParam = urlParams.get('room');
     
     if (roomParam) {
+      // Keep the URL sharing functionality but remove any server communication
       const shareableUrl = window.location.href;
       
       navigator.clipboard.writeText(shareableUrl)
