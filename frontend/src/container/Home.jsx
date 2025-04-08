@@ -32,7 +32,7 @@ const Home = () => {
   }
 
   return (
-    <div className='w-full min-h-screen flex flex-col items-center justify-start'>
+    <div className={`w-full min-h-screen flex flex-col items-center justify-start ${location.pathname === '/home/auth' ? 'bg-[#051630]' : ''}`}>
       <div className='w-full h-full flex flex-col items-start justify-start'>
         <div className='w-full h-full'>
           <Routes>
