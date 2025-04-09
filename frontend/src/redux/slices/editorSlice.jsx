@@ -7,6 +7,9 @@ const initialState = {
   selectedLanguage: 'javascript',
   selectedTheme: 'vs-dark',
   unsavedChanges: {}, // Track unsaved changes per file
+  inputContent: '',
+  outputContent: '',
+  isCompiling: false
 };
 
 const editorSlice = createSlice({
@@ -59,6 +62,15 @@ const editorSlice = createSlice({
     setIsAIEnabled: (state, action) => {
       state.isAIEnabled = action.payload;
     },
+    setInputContent: (state, action) => {
+      state.inputContent = action.payload;
+    },
+    setOutputContent: (state, action) => {
+      state.outputContent = action.payload;
+    },
+    setIsCompiling: (state, action) => {
+      state.isCompiling = action.payload;
+    },
   },
 });
 
@@ -69,6 +81,9 @@ export const {
   setLanguage, 
   setTheme, 
   clearUnsavedChanges,
+  setInputContent, 
+  setOutputContent, 
+  setIsCompiling, 
   setIsAIEnabled
 } = editorSlice.actions;
 export default editorSlice.reducer;

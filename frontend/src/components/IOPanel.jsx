@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
 import { FaTerminal, FaKeyboard } from 'react-icons/fa';
+import { useSelector, useDispatch } from 'react-redux';
+import { setInputContent } from '../redux/slices/editorSlice';
 
 const IOPanel = ({ type = 'output' }) => {
   const [content, setContent] = useState('');
+  const dispatch = useDispatch();
+  const { inputContent, outputContent } = useSelector((state) => state.editor);
   const isOutput = type === 'output';
+
+  const handleChange = (e) => {
+    dispatch(setInputContent(e.target.value));
+  };
   
   return (
     <div className="h-full w-full flex flex-col bg-[#031d38]">
@@ -27,8 +35,9 @@ const IOPanel = ({ type = 'output' }) => {
       {/* Content - improved padding and styling */}
       <div className="flex-1 p-2">
         <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
+          value={isOutput ? outputContent : inputContent}
+          /*onChange={(e) => setContent(e.target.value)}*/
+          onChange={isOutput ? undefined : handleChange}
           readOnly={isOutput}
           className="w-full h-full bg-[#132F4C] text-white p-3 rounded-md 
             border border-[#1E4976] focus:outline-none focus:border-blue-500
