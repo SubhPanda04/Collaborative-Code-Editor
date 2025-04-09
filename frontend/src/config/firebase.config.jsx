@@ -3,14 +3,13 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: process.env.REACT_APP_API_KEY,
-    authDomain: process.env.REACT_APP_AUTHDOMAIN,
-    projectId: process.env.REACT_APP_PROJECTID,
-    storageBucket: process.env.REACT_APP_STORAGEBUCKET,
-    messagingSenderId: process.env.REACT_APP_MESSAGESENDERID,
-    appId: process.env.REACT_APP_APPID
+    apiKey: "AIzaSyB8Ay-dvr9ABFxaksrEnSdhTnVSfs63pcw",
+    authDomain:"collaborative-code-edito-433e8.firebaseapp.com",
+    projectId: "collaborative-code-edito-433e8",
+    storageBucket:"collaborative-code-edito-433e8.firebasestorage.app",
+    messagingSenderId:  "561202415260",
+    appId:"1:561202415260:web:b1ed3c515e241223118f59"
 };
-
 const app = getApps.length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);

@@ -3,16 +3,17 @@ import { v4 as uuidv4 } from 'uuid';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { setTheme, setCurrentFile, closeFile, setIsAIEnabled } from '../redux/slices/editorSlice';
+import { setTheme, setCurrentFile, closeFile, setIsAIEnabled,setOutputContent, setIsCompiling  } from '../redux/slices/editorSlice';
 import { FaPlay, FaCode, FaUsers, FaTimes, FaCopy, FaCheck, FaRobot } from 'react-icons/fa';
 import { toast } from 'react-hot-toast'; // Add this import for toast notifications
+import { compileCode } from '../utils/compilecode';
 
 const Header = () => {
   const { folderId, fileId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   // Fix the destructuring here
-  const { currentFile, openFiles, unsavedChanges, selectedTheme, isAIEnabled } = useSelector((state) => state.editor);
+  const { currentFile, openFiles, unsavedChanges, selectedTheme, isAIEnabled, activeFiles, inputContent } = useSelector((state) => state.editor);
   const [currentRoomId, setCurrentRoomId] = useState('');
   const themes = ['vs-dark', 'light', 'hc-black'];
 
@@ -81,6 +82,35 @@ const Header = () => {
 
   const handleAIToggle = (e) => {
     dispatch(setIsAIEnabled(e.target.checked));
+  };
+
+  const handleRunCode = async () => {
+    if (!currentFile) return;
+    try {
+      const code = activeFiles[currentFile.id];
+      const fileName = currentFile.name;
+      const extension = fileName.split('.').pop().toLowerCase();
+      const input = inputContent;
+
+      dispatch(setIsCompiling(true));
+
+      const result = await compileCode({ code, language: extension, input });
+
+      const output =
+        result.stdout
+          ? atob(result.stdout)
+          : result.stderr
+            ? atob(result.stderr)
+            : result.compile_output
+              ? atob(result.compile_output)
+              : 'No output';
+
+      dispatch(setOutputContent(output));
+    } catch (error) {
+      dispatch(setOutputContent('Error: ' + error.message));
+    } finally {
+      dispatch(setIsCompiling(false));
+    }
   };
 
   return (
@@ -155,7 +185,7 @@ const Header = () => {
           {/* Run Button */}
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={() => console.log('Run code functionality to be implemented')}
+            onClick={handleRunCode}
             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg 
             transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500"
           >
